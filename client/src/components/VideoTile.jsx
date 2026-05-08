@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 
 function MicOffBadge() {
   return (
@@ -11,8 +11,16 @@ function MicOffBadge() {
   );
 }
 
-export default function VideoTile({ stream, muted = false, label, className = '', showPlaceholder = false, objectFit = 'cover', showMuteIndicator = false, mirror = false }) {
+const VideoTile = forwardRef(function VideoTile({ stream, muted = false, label, className = '', showPlaceholder = false, objectFit = 'cover', showMuteIndicator = false, mirror = false }, ref) {
   const videoRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    requestPiP: async () => {
+      if (videoRef.current && document.pictureInPictureEnabled) {
+        return videoRef.current.requestPictureInPicture();
+      }
+    },
+  }));
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -58,4 +66,6 @@ export default function VideoTile({ stream, muted = false, label, className = ''
       )}
     </div>
   );
-}
+});
+
+export default VideoTile;

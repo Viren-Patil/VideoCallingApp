@@ -58,7 +58,14 @@ export default function HomePage() {
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
   const [creatingRoom, setCreatingRoom] = useState(false);
+  const [name, setName] = useState(() => sessionStorage.getItem('callspaceName') || '');
   const navigate = useNavigate();
+
+  const handleNameChange = (e) => {
+    const val = e.target.value;
+    setName(val);
+    sessionStorage.setItem('callspaceName', val);
+  };
 
   const joinRoom = () => {
     const code = joinCode.trim().toUpperCase();
@@ -86,6 +93,22 @@ export default function HomePage() {
         {/* Card */}
         <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl p-6 space-y-5
                         border border-white/8 shadow-2xl">
+
+          {/* Name input — shown above both flows */}
+          <div>
+            <label className="block text-gray-500 text-xs mb-1.5">Your name (optional)</label>
+            <input
+              type="text"
+              value={name}
+              onChange={handleNameChange}
+              placeholder="e.g. Alex"
+              maxLength={30}
+              className="w-full px-4 py-2.5 bg-gray-800/80 border border-white/8
+                         focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 focus:outline-none
+                         rounded-xl text-white placeholder-gray-600 text-sm
+                         transition-all duration-150"
+            />
+          </div>
 
           {creatingRoom ? (
             <NewRoomCard

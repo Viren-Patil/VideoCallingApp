@@ -63,6 +63,18 @@ const ChevronUpIcon = () => (
   </svg>
 );
 
+const ChatIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+  </svg>
+);
+
+const PiPIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.99 2 1.99h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/>
+  </svg>
+);
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function useClickOutside(ref, onClose) {
@@ -213,6 +225,8 @@ export default function CallControls({
   isVideoOff,   onToggleVideo,  cameras,     selectedCameraId, onSwitchCamera,
   isScreenSharing, onStartScreenShare, onStopScreenShare,
   onReact,
+  chatUnread, onToggleChat,
+  onTogglePiP,
   onLeave,
 }) {
   return (
@@ -242,6 +256,34 @@ export default function CallControls({
       />
 
       <ReactionButton onReact={onReact} />
+
+      {/* Chat button with unread badge */}
+      <div className="relative">
+        <button
+          onClick={onToggleChat}
+          title="Chat (C)"
+          className="w-11 h-11 flex items-center justify-center rounded-full
+                     bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
+        >
+          <ChatIcon />
+        </button>
+        {chatUnread > 0 && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center
+                           rounded-full bg-blue-500 text-white text-[9px] font-bold pointer-events-none">
+            {chatUnread > 9 ? '9+' : chatUnread}
+          </span>
+        )}
+      </div>
+
+      {/* PiP button */}
+      <button
+        onClick={onTogglePiP}
+        title="Picture in Picture"
+        className="w-11 h-11 flex items-center justify-center rounded-full
+                   bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
+      >
+        <PiPIcon />
+      </button>
 
       <div className="w-px h-7 bg-white/10 mx-1" />
 

@@ -18,7 +18,9 @@ const io = new Server(httpServer, {
 const rooms = new Map();
 
 io.on('connection', (socket) => {
-  socket.on('join-room', (roomId) => {
+  socket.on('join-room', (payload) => {
+    const roomId = typeof payload === 'string' ? payload : payload?.roomId;
+    const name   = typeof payload === 'string' ? '' : (payload?.name ?? '');
     const members = rooms.get(roomId) ?? new Set();
 
     if (members.size >= 2) {
@@ -30,19 +32,23 @@ io.on('connection', (socket) => {
     rooms.set(roomId, members);
     socket.join(roomId);
     socket.data.roomId = roomId;
+    socket.data.name = name;
 
     // isInitiator = true means this peer is the second to join and will create the first offer
     const isInitiator = members.size === 2;
-    socket.emit('room-joined', { roomId, isInitiator });
 
     if (isInitiator) {
-      // Tell the waiting peer that someone joined
-      socket.to(roomId).emit('peer-joined', { socketId: socket.id });
+      const waitingId = [...members].find(id => id !== socket.id);
+      const peerName = waitingId ? (io.sockets.sockets.get(waitingId)?.data.name ?? '') : '';
+      socket.emit('room-joined', { roomId, isInitiator, peerName });
+      socket.to(roomId).emit('peer-joined', { socketId: socket.id, name });
+    } else {
+      socket.emit('room-joined', { roomId, isInitiator });
     }
   });
 
   // Relay SDP, ICE, and video-toggle payloads verbatim
-  for (const event of ['offer', 'answer', 'ice-candidate', 'video-toggle', 'audio-toggle']) {
+  for (const event of ['offer', 'answer', 'ice-candidate', 'video-toggle', 'audio-toggle', 'chat-message']) {
     socket.on(event, (payload) => {
       socket.to(socket.data.roomId).emit(event, payload);
     });

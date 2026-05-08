@@ -24,13 +24,15 @@ const ICE_SERVERS = {
   ],
 };
 
-export function useWebRTC(roomId) {
+export function useWebRTC(roomId, localName = '') {
   // ── Streams & connection ──────────────────────────────────────────────────
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [connectionState, setConnectionState] = useState('new');
   const [peerJoined, setPeerJoined] = useState(false);
   const [mediaError, setMediaError] = useState(null);
+  const [remotePeerName, setRemotePeerName] = useState('');
+  const [connectionQuality, setConnectionQuality] = useState(null);
 
   // ── Media control state ───────────────────────────────────────────────────
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -60,6 +62,7 @@ export function useWebRTC(roomId) {
   const isVideoOffRef = useRef(false);
   const selectedCameraIdRef = useRef('');
   const selectedMicIdRef = useRef('');
+  const qualityIntervalRef = useRef(null);
   const navigate = useNavigate();
 
   // Keep refs in sync with state setters
@@ -84,6 +87,7 @@ export function useWebRTC(roomId) {
     pc.onconnectionstatechange = () => {
       setConnectionState(pc.connectionState);
       if (pc.connectionState === 'connected') {
+        // Bitrate enforcement
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
         if (sender) {
           try {
@@ -96,6 +100,32 @@ export function useWebRTC(roomId) {
             sender.setParameters(params);
           } catch { /* not critical */ }
         }
+
+        // Connection quality polling
+        qualityIntervalRef.current = setInterval(async () => {
+          const stats = await pc.getStats();
+          let rtt = null;
+          let packetsLost = 0;
+          let packetsReceived = 0;
+          stats.forEach(report => {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded' &&
+                report.currentRoundTripTime != null && rtt === null) {
+              rtt = report.currentRoundTripTime * 1000;
+            }
+            if (report.type === 'inbound-rtp' && report.kind === 'video') {
+              packetsLost = report.packetsLost ?? 0;
+              packetsReceived = report.packetsReceived ?? 0;
+            }
+          });
+          if (rtt === null) return;
+          const total = packetsLost + packetsReceived;
+          const lossRate = total > 0 ? packetsLost / total : 0;
+          if (rtt < 150 && lossRate < 0.01) setConnectionQuality('good');
+          else if (rtt < 300 && lossRate < 0.05) setConnectionQuality('fair');
+          else setConnectionQuality('poor');
+        }, 3000);
+      } else {
+        clearInterval(qualityIntervalRef.current);
       }
     };
 
@@ -170,15 +200,23 @@ export function useWebRTC(roomId) {
         } catch { /* Firefox does not support setCodecPreferences */ }
 
         socket.connect();
-        socket.emit('join-room', roomId);
+        socket.emit('join-room', { roomId, name: localName });
       } catch (err) {
         console.error('getUserMedia failed:', err);
         if (active) setMediaError(err.message);
       }
     };
 
-    socket.on('room-joined', ({ isInitiator }) => { politeRef.current = !isInitiator; });
-    socket.on('peer-joined', () => { if (active) setPeerJoined(true); });
+    socket.on('room-joined', ({ isInitiator, peerName }) => {
+      politeRef.current = !isInitiator;
+      if (peerName) setRemotePeerName(peerName);
+    });
+    socket.on('peer-joined', ({ name } = {}) => {
+      if (active) {
+        setPeerJoined(true);
+        if (name) setRemotePeerName(name);
+      }
+    });
     socket.on('room-full', () => navigate('/'));
 
     socket.on('offer', async (description) => {
@@ -233,6 +271,9 @@ export function useWebRTC(roomId) {
       setConnectionState('new');
       setIsRemoteVideoOff(false);
       setIsRemoteAudioMuted(false);
+      setRemotePeerName('');
+      setConnectionQuality(null);
+      clearInterval(qualityIntervalRef.current);
       pcRef.current?.close();
       const pc = makePc();
       localStreamRef.current?.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
@@ -246,6 +287,7 @@ export function useWebRTC(roomId) {
       localStreamRef.current?.getTracks().forEach(t => t.stop());
       screenStreamRef.current?.getTracks().forEach(t => t.stop());
       audioContextRef.current?.close();
+      clearInterval(qualityIntervalRef.current);
       localStreamRef.current = null;
       cameraTrackRef.current = null;
       screenStreamRef.current = null;
@@ -264,7 +306,7 @@ export function useWebRTC(roomId) {
       socket.off('peer-left');
       socket.disconnect();
     };
-  }, [roomId, navigate, makePc, enumerateDevices]);
+  }, [roomId, localName, navigate, makePc, enumerateDevices]);
 
   // ── Media controls ────────────────────────────────────────────────────────
 
@@ -438,6 +480,7 @@ export function useWebRTC(roomId) {
   const leaveCall = useCallback(() => {
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
+    clearInterval(qualityIntervalRef.current);
     pcRef.current?.close();
     socket.emit('leave-room');
     socket.disconnect();
@@ -447,6 +490,8 @@ export function useWebRTC(roomId) {
   return {
     // Streams & state
     localStream, remoteStream, connectionState, peerJoined, mediaError,
+    // Names & quality
+    remotePeerName, connectionQuality,
     // Media controls
     isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
     toggleAudio, toggleVideo,

@@ -1,12 +1,14 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useReactions } from '../hooks/useReactions';
 import { useCallTimer } from '../hooks/useCallTimer';
+import { useChat } from '../hooks/useChat';
 import VideoTile from '../components/VideoTile';
 import DraggablePiP from '../components/DraggablePiP';
 import CallControls from '../components/CallControls';
 import ReactionOverlay from '../components/ReactionOverlay';
+import ChatPanel from '../components/ChatPanel';
 
 const STATE_LABEL = {
   new:          { text: 'Initialising…',    dot: 'bg-yellow-400 animate-pulse' },
@@ -16,6 +18,23 @@ const STATE_LABEL = {
   failed:       { text: 'Connection failed', dot: 'bg-red-400'                  },
   closed:       { text: 'Disconnected',      dot: 'bg-gray-500'                 },
 };
+
+function SignalBars({ quality }) {
+  if (!quality) return null;
+  const configs = {
+    good: ['bg-green-400',  'bg-green-400',  'bg-green-400'],
+    fair: ['bg-yellow-400', 'bg-yellow-400', 'bg-gray-600'],
+    poor: ['bg-red-400',    'bg-gray-600',   'bg-gray-600'],
+  };
+  const bars = configs[quality] ?? ['bg-gray-600', 'bg-gray-600', 'bg-gray-600'];
+  return (
+    <div className="flex items-end gap-0.5 h-3.5 mr-1">
+      <div className={`w-1 h-1.5 rounded-[1px] ${bars[0]}`} />
+      <div className={`w-1 h-2.5 rounded-[1px] ${bars[1]}`} />
+      <div className={`w-1 h-3.5 rounded-[1px] ${bars[2]}`} />
+    </div>
+  );
+}
 
 function CopyLinkButton({ roomId }) {
   const [copied, setCopied] = useState(false);
@@ -41,22 +60,63 @@ export default function RoomPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const roomId = searchParams.get('room');
+  const localName = sessionStorage.getItem('callspaceName') || '';
 
   useEffect(() => { if (!roomId) navigate('/'); }, [roomId, navigate]);
 
   const {
     localStream, remoteStream, connectionState, peerJoined, mediaError,
+    remotePeerName, connectionQuality,
     isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
     toggleAudio, toggleVideo,
     cameras, microphones, selectedCameraId, selectedMicId,
     switchCamera, switchMicrophone,
     startScreenShare, stopScreenShare,
     leaveCall,
-  } = useWebRTC(roomId);
+  } = useWebRTC(roomId, localName);
 
   const { activeReactions, sendReaction } = useReactions();
   const callTimer = useCallTimer(connectionState);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const remoteVideoRef = useRef(null);
+
+  const { messages, unreadCount, sendMessage, clearUnread } = useChat(localName, chatOpen);
+
+  const toggleChat = useCallback(() => {
+    setChatOpen(v => {
+      if (!v) clearUnread();
+      return !v;
+    });
+  }, [clearUnread]);
+
+  const togglePiP = useCallback(async () => {
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await remoteVideoRef.current?.requestPiP();
+      }
+    } catch (err) {
+      console.error('PiP error:', err);
+    }
+  }, []);
+
+  // Keyboard shortcuts: M = mute, V = video, S = screen share
+  useEffect(() => {
+    const handleKey = (e) => {
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === 'm' || e.key === 'M') toggleAudio();
+      else if (e.key === 'v' || e.key === 'V') toggleVideo();
+      else if (e.key === 's' || e.key === 'S') {
+        if (isScreenSharing) stopScreenShare();
+        else startScreenShare();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [toggleAudio, toggleVideo, isScreenSharing, startScreenShare, stopScreenShare]);
 
   if (!roomId) return null;
 
@@ -98,35 +158,58 @@ export default function RoomPage() {
           </span>
         )}
 
-        {/* Right: connection indicator */}
+        {/* Right: signal bars + connection indicator */}
         <div className="flex items-center gap-1.5">
+          <SignalBars quality={connectionQuality} />
           <span className={`w-1.5 h-1.5 rounded-full ${stateInfo.dot}`} />
           <span className="text-gray-500 text-xs">{stateInfo.text}</span>
         </div>
       </div>
 
-      {/* Video area */}
-      <div className="relative flex-1 overflow-hidden bg-gray-950">
-        {remoteStream ? (
-          <VideoTile stream={remoteStream} muted={false} showPlaceholder={isRemoteVideoOff} showMuteIndicator={isRemoteAudioMuted} objectFit="contain" className="w-full h-full" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center space-y-5">
-              <div className="relative mx-auto w-16 h-16">
-                <div className="absolute inset-0 rounded-full border-[3px] border-blue-500/30 animate-ping" />
-                <div className="w-16 h-16 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-              <div className="space-y-2">
-                <p className="text-gray-200 text-base font-medium">
-                  {peerJoined ? 'Establishing connection…' : 'Waiting for someone to join…'}
-                </p>
-                <p className="text-gray-500 text-sm">
-                  Share your invite link or room code{' '}
-                  <span className="text-white font-mono font-semibold tracking-widest">{roomId}</span>
-                </p>
+      {/* Video area + chat panel */}
+      <div className="relative flex-1 overflow-hidden flex min-h-0">
+
+        {/* Main video */}
+        <div className="relative flex-1 overflow-hidden bg-gray-950">
+          {remoteStream ? (
+            <VideoTile
+              ref={remoteVideoRef}
+              stream={remoteStream}
+              muted={false}
+              label={remotePeerName || undefined}
+              showPlaceholder={isRemoteVideoOff}
+              showMuteIndicator={isRemoteAudioMuted}
+              objectFit="contain"
+              className="w-full h-full"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center space-y-5">
+                <div className="relative mx-auto w-16 h-16">
+                  <div className="absolute inset-0 rounded-full border-[3px] border-blue-500/30 animate-ping" />
+                  <div className="w-16 h-16 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-gray-200 text-base font-medium">
+                    {peerJoined ? 'Establishing connection…' : 'Waiting for someone to join…'}
+                  </p>
+                  <p className="text-gray-500 text-sm">
+                    Share your invite link or room code{' '}
+                    <span className="text-white font-mono font-semibold tracking-widest">{roomId}</span>
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+        </div>
+
+        {/* Chat panel */}
+        {chatOpen && (
+          <ChatPanel
+            messages={messages}
+            onSendMessage={sendMessage}
+            onClose={() => setChatOpen(false)}
+          />
         )}
       </div>
 
@@ -134,7 +217,12 @@ export default function RoomPage() {
       <ReactionOverlay reactions={activeReactions} />
 
       {/* Draggable local PiP */}
-      <DraggablePiP stream={localStream} label={isScreenSharing ? 'Sharing' : 'You'} showPlaceholder={isVideoOff} showMuteIndicator={isAudioMuted} />
+      <DraggablePiP
+        stream={localStream}
+        label={isScreenSharing ? 'Sharing' : (localName || 'You')}
+        showPlaceholder={isVideoOff}
+        showMuteIndicator={isAudioMuted}
+      />
 
       {/* Control bar */}
       <CallControls
@@ -144,6 +232,9 @@ export default function RoomPage() {
         cameras={cameras}                   selectedCameraId={selectedCameraId}  onSwitchCamera={switchCamera}
         isScreenSharing={isScreenSharing}   onStartScreenShare={startScreenShare} onStopScreenShare={stopScreenShare}
         onReact={sendReaction}
+        chatUnread={chatOpen ? 0 : unreadCount}
+        onToggleChat={toggleChat}
+        onTogglePiP={togglePiP}
         onLeave={() => setConfirmLeave(true)}
       />
 
