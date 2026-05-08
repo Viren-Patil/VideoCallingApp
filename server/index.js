@@ -42,7 +42,7 @@ io.on('connection', (socket) => {
   });
 
   // Relay SDP, ICE, and video-toggle payloads verbatim
-  for (const event of ['offer', 'answer', 'ice-candidate', 'video-toggle']) {
+  for (const event of ['offer', 'answer', 'ice-candidate', 'video-toggle', 'audio-toggle']) {
     socket.on(event, (payload) => {
       socket.to(socket.data.roomId).emit(event, payload);
     });

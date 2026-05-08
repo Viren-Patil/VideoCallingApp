@@ -6,7 +6,7 @@ const PIP_H = 128; // h-32 = 8rem
 
 const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
 
-export default function DraggablePiP({ stream, label, showPlaceholder = false }) {
+export default function DraggablePiP({ stream, label, showPlaceholder = false, showMuteIndicator = false }) {
   // Lazy initialiser so window is available on first render
   const [pos, setPos] = useState(() => ({
     x: window.innerWidth - PIP_W - 16,
@@ -80,7 +80,7 @@ export default function DraggablePiP({ stream, label, showPlaceholder = false })
       className="fixed z-50 rounded-xl overflow-hidden ring-2 ring-gray-700 shadow-2xl
                  cursor-grab active:cursor-grabbing select-none touch-none"
     >
-      <VideoTile stream={stream} muted={true} label={label} showPlaceholder={showPlaceholder} className="w-full h-full" />
+      <VideoTile stream={stream} muted={true} label={label} showPlaceholder={showPlaceholder} showMuteIndicator={showMuteIndicator} className="w-full h-full" />
     </div>
   );
 }

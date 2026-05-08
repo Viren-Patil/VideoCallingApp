@@ -46,7 +46,7 @@ export default function RoomPage() {
 
   const {
     localStream, remoteStream, connectionState, peerJoined, mediaError,
-    isAudioMuted, isVideoOff, isRemoteVideoOff, isScreenSharing,
+    isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
     toggleAudio, toggleVideo,
     cameras, microphones, selectedCameraId, selectedMicId,
     switchCamera, switchMicrophone,
@@ -56,6 +56,7 @@ export default function RoomPage() {
 
   const { activeReactions, sendReaction } = useReactions();
   const callTimer = useCallTimer(connectionState);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   if (!roomId) return null;
 
@@ -107,7 +108,7 @@ export default function RoomPage() {
       {/* Video area */}
       <div className="relative flex-1 overflow-hidden bg-gray-950">
         {remoteStream ? (
-          <VideoTile stream={remoteStream} muted={false} showPlaceholder={isRemoteVideoOff} objectFit="contain" className="w-full h-full" />
+          <VideoTile stream={remoteStream} muted={false} showPlaceholder={isRemoteVideoOff} showMuteIndicator={isRemoteAudioMuted} objectFit="contain" className="w-full h-full" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center space-y-5">
@@ -133,7 +134,7 @@ export default function RoomPage() {
       <ReactionOverlay reactions={activeReactions} />
 
       {/* Draggable local PiP */}
-      <DraggablePiP stream={localStream} label={isScreenSharing ? 'Sharing' : 'You'} showPlaceholder={isVideoOff} />
+      <DraggablePiP stream={localStream} label={isScreenSharing ? 'Sharing' : 'You'} showPlaceholder={isVideoOff} showMuteIndicator={isAudioMuted} />
 
       {/* Control bar */}
       <CallControls
@@ -143,8 +144,36 @@ export default function RoomPage() {
         cameras={cameras}                   selectedCameraId={selectedCameraId}  onSwitchCamera={switchCamera}
         isScreenSharing={isScreenSharing}   onStartScreenShare={startScreenShare} onStopScreenShare={stopScreenShare}
         onReact={sendReaction}
-        onLeave={leaveCall}
+        onLeave={() => setConfirmLeave(true)}
       />
+
+      {/* Leave confirmation modal */}
+      {confirmLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-white/10 rounded-2xl shadow-2xl p-6 w-80 space-y-4">
+            <div className="text-center space-y-1">
+              <p className="text-white font-semibold text-lg">Leave call?</p>
+              <p className="text-gray-400 text-sm">The other person will remain in the room.</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmLeave(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/8 hover:bg-white/14 border border-white/10
+                           text-gray-200 font-medium text-sm transition-all duration-150"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={leaveCall}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500
+                           text-white font-semibold text-sm transition-all duration-150"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

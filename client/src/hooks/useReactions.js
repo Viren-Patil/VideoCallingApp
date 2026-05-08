@@ -2,12 +2,26 @@ import { useState, useCallback, useEffect } from 'react';
 import { socket } from '../lib/socket';
 
 export const REACTIONS = {
-  heart:    '❤️',
-  thumbsUp: '👍',
-  laugh:    '😂',
-  cry:      '😢',
-  wave:     '👋',
-  fire:     '🔥',
+  heart:     '❤️',
+  thumbsUp:  '👍',
+  thumbsDown:'👎',
+  clap:      '👏',
+  laugh:     '😂',
+  cry:       '😢',
+  wow:       '😮',
+  angry:     '😡',
+  wave:      '👋',
+  fire:      '🔥',
+  party:     '🎉',
+  rocket:    '🚀',
+  hundred:   '💯',
+  eyes:      '👀',
+  think:     '🤔',
+  muscle:    '💪',
+  cool:      '😎',
+  love:      '🥰',
+  mindblown: '🤯',
+  star:      '⭐',
 };
 
 export function useReactions() {

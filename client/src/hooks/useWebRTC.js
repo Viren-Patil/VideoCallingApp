@@ -35,6 +35,7 @@ export function useWebRTC(roomId) {
   // ── Media control state ───────────────────────────────────────────────────
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false);
+  const [isRemoteAudioMuted, setIsRemoteAudioMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
@@ -220,12 +221,17 @@ export function useWebRTC(roomId) {
       if (active) setIsRemoteVideoOff(isOff);
     });
 
+    socket.on('audio-toggle', (isOff) => {
+      if (active) setIsRemoteAudioMuted(isOff);
+    });
+
     socket.on('peer-left', () => {
       if (!active) return;
       setPeerJoined(false);
       setRemoteStream(null);
       setConnectionState('new');
       setIsRemoteVideoOff(false);
+      setIsRemoteAudioMuted(false);
       pcRef.current?.close();
       const pc = makePc();
       localStreamRef.current?.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
@@ -251,6 +257,7 @@ export function useWebRTC(roomId) {
       socket.off('answer');
       socket.off('ice-candidate');
       socket.off('video-toggle');
+      socket.off('audio-toggle');
       socket.off('peer-left');
       socket.disconnect();
     };
@@ -264,6 +271,7 @@ export function useWebRTC(roomId) {
     track.enabled = !track.enabled;
     isAudioMutedRef.current = !track.enabled;
     setIsAudioMuted(!track.enabled);
+    socket.emit('audio-toggle', !track.enabled);
   }, []);
 
   const toggleVideo = useCallback(() => {
@@ -342,7 +350,6 @@ export function useWebRTC(roomId) {
 
     if (sender && cameraTrack) {
       await sender.replaceTrack(cameraTrack);
-      // Restore camera bitrate (~4 Mbps)
       try {
         const params = sender.getParameters();
         if (params.encodings?.length) {
@@ -352,31 +359,21 @@ export function useWebRTC(roomId) {
       } catch { /* not critical */ }
     }
 
-    // Restore mic track if system audio was swapped in
-    const micTrack = localStreamRef.current?.getAudioTracks()[0];
-    if (micTrack) {
-      const audioSender = pcRef.current?.getSenders().find(s => s.track?.kind === 'audio');
-      if (audioSender) await audioSender.replaceTrack(micTrack);
-    }
-
     const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
     if (cameraTrack) setLocalStream(new MediaStream([...audioTracks, cameraTrack]));
 
     setIsScreenSharing(false);
   }, []);
 
-  const startScreenShare = useCallback(async (withAudio = false) => {
+  const startScreenShare = useCallback(async () => {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: { ideal: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: withAudio,
+        audio: false,
       });
       screenStreamRef.current = screenStream;
 
       const screenVideoTrack = screenStream.getVideoTracks()[0];
-
-      // Tell the encoder this is screen/detail content, not motion-heavy camera footage.
-      // This makes the encoder prioritise sharpness (text, UI) over smoothness.
       if ('contentHint' in screenVideoTrack) {
         screenVideoTrack.contentHint = 'detail';
       }
@@ -384,22 +381,16 @@ export function useWebRTC(roomId) {
       const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
       if (sender) {
         await sender.replaceTrack(screenVideoTrack);
-        // Boost bitrate for screen content — sharp UI/text needs more bits than camera
         try {
           const params = sender.getParameters();
           if (params.encodings?.length) {
-            params.encodings[0].maxBitrate = 8_000_000; // 8 Mbps for crisp screen share
+            params.encodings[0].maxBitrate = 8_000_000;
           }
           await sender.setParameters(params);
         } catch { /* not critical */ }
       }
 
-      const screenAudioTrack = screenStream.getAudioTracks()[0];
-      if (screenAudioTrack) {
-        const audioSender = pcRef.current?.getSenders().find(s => s.track?.kind === 'audio');
-        if (audioSender) await audioSender.replaceTrack(screenAudioTrack);
-      }
-
+      // Audio sender is intentionally left untouched — mic stays active during screen share
       const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
       setLocalStream(new MediaStream([...audioTracks, screenVideoTrack]));
 
@@ -425,7 +416,7 @@ export function useWebRTC(roomId) {
     // Streams & state
     localStream, remoteStream, connectionState, peerJoined, mediaError,
     // Media controls
-    isAudioMuted, isVideoOff, isRemoteVideoOff, isScreenSharing,
+    isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
     toggleAudio, toggleVideo,
     // Device management
     cameras, microphones, selectedCameraId, selectedMicId,
