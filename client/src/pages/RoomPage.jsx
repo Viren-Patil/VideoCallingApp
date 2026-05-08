@@ -46,7 +46,7 @@ export default function RoomPage() {
 
   const {
     localStream, remoteStream, connectionState, peerJoined, mediaError,
-    isAudioMuted, isVideoOff, isScreenSharing,
+    isAudioMuted, isVideoOff, isRemoteVideoOff, isScreenSharing,
     toggleAudio, toggleVideo,
     cameras, microphones, selectedCameraId, selectedMicId,
     switchCamera, switchMicrophone,
@@ -107,7 +107,7 @@ export default function RoomPage() {
       {/* Video area */}
       <div className="relative flex-1 overflow-hidden bg-gray-950">
         {remoteStream ? (
-          <VideoTile stream={remoteStream} muted={false} className="w-full h-full" />
+          <VideoTile stream={remoteStream} muted={false} showPlaceholder={isRemoteVideoOff} className="w-full h-full" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center space-y-5">
@@ -133,7 +133,7 @@ export default function RoomPage() {
       <ReactionOverlay reactions={activeReactions} />
 
       {/* Draggable local PiP */}
-      <DraggablePiP stream={localStream} label={isScreenSharing ? 'Sharing' : 'You'} />
+      <DraggablePiP stream={localStream} label={isScreenSharing ? 'Sharing' : 'You'} showPlaceholder={isVideoOff} />
 
       {/* Control bar */}
       <CallControls

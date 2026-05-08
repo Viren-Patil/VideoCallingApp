@@ -34,6 +34,7 @@ export function useWebRTC(roomId) {
 
   // ── Media control state ───────────────────────────────────────────────────
   const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
@@ -185,11 +186,16 @@ export function useWebRTC(roomId) {
       catch (err) { if (!ignoreOffer.current) console.error('ICE error', err); }
     });
 
+    socket.on('video-toggle', (isOff) => {
+      if (active) setIsRemoteVideoOff(isOff);
+    });
+
     socket.on('peer-left', () => {
       if (!active) return;
       setPeerJoined(false);
       setRemoteStream(null);
       setConnectionState('new');
+      setIsRemoteVideoOff(false);
       pcRef.current?.close();
       const pc = makePc();
       localStreamRef.current?.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
@@ -214,6 +220,7 @@ export function useWebRTC(roomId) {
       socket.off('offer');
       socket.off('answer');
       socket.off('ice-candidate');
+      socket.off('video-toggle');
       socket.off('peer-left');
       socket.disconnect();
     };
@@ -235,6 +242,7 @@ export function useWebRTC(roomId) {
     track.enabled = !track.enabled;
     isVideoOffRef.current = !track.enabled;
     setIsVideoOff(!track.enabled);
+    socket.emit('video-toggle', !track.enabled);
   }, []);
 
   // ── Device switching ──────────────────────────────────────────────────────
@@ -387,7 +395,7 @@ export function useWebRTC(roomId) {
     // Streams & state
     localStream, remoteStream, connectionState, peerJoined, mediaError,
     // Media controls
-    isAudioMuted, isVideoOff, isScreenSharing,
+    isAudioMuted, isVideoOff, isRemoteVideoOff, isScreenSharing,
     toggleAudio, toggleVideo,
     // Device management
     cameras, microphones, selectedCameraId, selectedMicId,

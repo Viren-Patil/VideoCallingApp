@@ -41,8 +41,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Relay SDP and ICE payloads verbatim — server never inspects content
-  for (const event of ['offer', 'answer', 'ice-candidate']) {
+  // Relay SDP, ICE, and video-toggle payloads verbatim
+  for (const event of ['offer', 'answer', 'ice-candidate', 'video-toggle']) {
     socket.on(event, (payload) => {
       socket.to(socket.data.roomId).emit(event, payload);
     });

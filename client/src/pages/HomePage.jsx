@@ -12,12 +12,59 @@ const FEATURES = [
   { icon: '🚫', label: 'No login' },
 ];
 
+function NewRoomCard({ onBack, onEnter }) {
+  const [roomId] = useState(() => generateRoomId());
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    navigator.clipboard.writeText(roomId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-gray-400 text-sm text-center">Share this code with the person you want to call</p>
+
+      {/* Code display + copy */}
+      <div className="flex items-center gap-2 bg-gray-800/80 border border-white/8 rounded-xl px-4 py-3">
+        <span className="flex-1 text-white font-mono text-2xl tracking-[0.35em] text-center select-all">
+          {roomId}
+        </span>
+        <button
+          onClick={copy}
+          title="Copy code"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                     bg-white/8 hover:bg-white/14 border border-white/10
+                     text-gray-300 hover:text-white transition-all duration-150"
+        >
+          {copied ? '✓ Copied' : '⎘ Copy'}
+        </button>
+      </div>
+
+      <button
+        onClick={() => onEnter(roomId)}
+        className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 active:scale-[0.98]
+                   text-white font-semibold rounded-xl transition-all duration-150 shadow-lg shadow-blue-900/40"
+      >
+        Enter room
+      </button>
+
+      <button
+        onClick={onBack}
+        className="w-full py-2 text-gray-500 hover:text-gray-300 text-sm transition-colors"
+      >
+        ← Back
+      </button>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
+  const [creatingRoom, setCreatingRoom] = useState(false);
   const navigate = useNavigate();
-
-  const createRoom = () => navigate(`/room?room=${generateRoomId()}`);
 
   const joinRoom = () => {
     const code = joinCode.trim().toUpperCase();
@@ -60,46 +107,56 @@ export default function HomePage() {
         {/* Card */}
         <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl p-6 space-y-5
                         border border-white/8 shadow-2xl">
-          <button
-            onClick={createRoom}
-            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 active:scale-[0.98]
-                       text-white font-semibold rounded-xl transition-all duration-150 shadow-lg shadow-blue-900/40"
-          >
-            Start a new call
-          </button>
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-white/8" />
-            <span className="text-gray-600 text-xs">or join with a code</span>
-            <div className="flex-1 h-px bg-white/8" />
-          </div>
-
-          <div className="space-y-3">
-            <input
-              type="text"
-              value={joinCode}
-              onChange={(e) => { setJoinCode(e.target.value); setError(''); }}
-              onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
-              placeholder="XXXXXX"
-              maxLength={12}
-              className="w-full px-4 py-3 bg-gray-800/80 border border-white/8
-                         focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 focus:outline-none
-                         rounded-xl text-white placeholder-gray-600
-                         uppercase tracking-[0.3em] font-mono text-center text-lg
-                         transition-all duration-150"
+          {creatingRoom ? (
+            <NewRoomCard
+              onBack={() => setCreatingRoom(false)}
+              onEnter={(id) => navigate(`/room?room=${id}`)}
             />
-            {error && (
-              <p className="text-red-400 text-xs text-center">{error}</p>
-            )}
-            <button
-              onClick={joinRoom}
-              className="w-full py-3 px-4 bg-white/8 hover:bg-white/12 active:scale-[0.98]
-                         border border-white/8 text-gray-200 font-medium rounded-xl
-                         transition-all duration-150"
-            >
-              Join call
-            </button>
-          </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setCreatingRoom(true)}
+                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 active:scale-[0.98]
+                           text-white font-semibold rounded-xl transition-all duration-150 shadow-lg shadow-blue-900/40"
+              >
+                Start a new call
+              </button>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-white/8" />
+                <span className="text-gray-600 text-xs">or join with a code</span>
+                <div className="flex-1 h-px bg-white/8" />
+              </div>
+
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={joinCode}
+                  onChange={(e) => { setJoinCode(e.target.value); setError(''); }}
+                  onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
+                  placeholder="XXXXXX"
+                  maxLength={12}
+                  className="w-full px-4 py-3 bg-gray-800/80 border border-white/8
+                             focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 focus:outline-none
+                             rounded-xl text-white placeholder-gray-600
+                             uppercase tracking-[0.3em] font-mono text-center text-lg
+                             transition-all duration-150"
+                />
+                {error && (
+                  <p className="text-red-400 text-xs text-center">{error}</p>
+                )}
+                <button
+                  onClick={joinRoom}
+                  className="w-full py-3 px-4 bg-white/8 hover:bg-white/12 active:scale-[0.98]
+                             border border-white/8 text-gray-200 font-medium rounded-xl
+                             transition-all duration-150"
+                >
+                  Join call
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <p className="text-center text-gray-700 text-xs">
