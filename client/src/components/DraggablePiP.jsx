@@ -80,7 +80,7 @@ export default function DraggablePiP({ stream, label, showPlaceholder = false, s
       className="fixed z-50 rounded-xl overflow-hidden ring-2 ring-gray-700 shadow-2xl
                  cursor-grab active:cursor-grabbing select-none touch-none"
     >
-      <VideoTile stream={stream} muted={true} label={label} showPlaceholder={showPlaceholder} showMuteIndicator={showMuteIndicator} className="w-full h-full" />
+      <VideoTile stream={stream} muted={true} label={label} showPlaceholder={showPlaceholder} showMuteIndicator={showMuteIndicator} mirror={true} className="w-full h-full" />
     </div>
   );
 }

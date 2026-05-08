@@ -11,7 +11,7 @@ function MicOffBadge() {
   );
 }
 
-export default function VideoTile({ stream, muted = false, label, className = '', showPlaceholder = false, objectFit = 'cover', showMuteIndicator = false }) {
+export default function VideoTile({ stream, muted = false, label, className = '', showPlaceholder = false, objectFit = 'cover', showMuteIndicator = false, mirror = false }) {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function VideoTile({ stream, muted = false, label, className = ''
         ref={videoRef}
         autoPlay
         playsInline
-        className={`w-full h-full transition-opacity duration-300 ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${noVideo ? 'opacity-0' : 'opacity-100'}`}
+        className={`w-full h-full transition-opacity duration-300 ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${noVideo ? 'opacity-0' : 'opacity-100'} ${mirror ? 'scale-x-[-1]' : ''}`}
       />
 
       {/* Placeholder — shown when stream is absent or video is toggled off */}
