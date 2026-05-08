@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent document-level scroll and bounce on all pages */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 /* ── Reaction float-up animation ─────────────────────────────────────────── */
 @keyframes float-up {
   0%   { transform: translateY(0)      scale(1);   opacity: 1;   }
