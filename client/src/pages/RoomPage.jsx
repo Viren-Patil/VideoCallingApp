@@ -151,10 +151,7 @@ export default function RoomPage() {
       {confirmLeave && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-gray-900 border border-white/10 rounded-2xl shadow-2xl p-6 w-80 space-y-4">
-            <div className="text-center space-y-1">
-              <p className="text-white font-semibold text-lg">Leave call?</p>
-              <p className="text-gray-400 text-sm">The other person will remain in the room.</p>
-            </div>
+            <p className="text-white font-semibold text-lg text-center">Leave call?</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmLeave(false)}

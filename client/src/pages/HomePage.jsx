@@ -68,7 +68,7 @@ export default function HomePage() {
 
   const joinRoom = () => {
     const code = joinCode.trim().toUpperCase();
-    if (code.length < 4) { setError('Enter a valid room code.'); return; }
+    if (code.length !== 6) { setError('Room code must be 6 characters.'); return; }
     navigate(`/room?room=${code}`);
   };
 
@@ -136,7 +136,7 @@ export default function HomePage() {
                   onChange={(e) => { setJoinCode(e.target.value); setError(''); }}
                   onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                   placeholder="XXXXXX"
-                  maxLength={12}
+                  maxLength={6}
                   className="w-full px-4 py-3 bg-gray-800/80 border border-white/8
                              focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 focus:outline-none
                              rounded-xl text-white placeholder-gray-600
