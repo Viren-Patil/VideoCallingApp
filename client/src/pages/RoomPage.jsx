@@ -141,7 +141,7 @@ export default function RoomPage() {
   const stateInfo = STATE_LABEL[connectionState] ?? STATE_LABEL.new;
 
   return (
-    <div className="h-screen h-[100dvh] bg-gray-950 flex flex-col overflow-hidden">
+    <div className="bg-gray-950 flex flex-col overflow-hidden" style={{ height: 'var(--app-height, 100dvh)' }}>
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-2
