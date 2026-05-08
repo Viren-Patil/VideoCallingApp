@@ -5,12 +5,6 @@ function generateRoomId() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-const FEATURES = [
-  { icon: '🎥', label: 'Up to 1080p' },
-  { icon: '🔒', label: 'Peer-to-peer' },
-  { icon: '⚡', label: 'Low latency' },
-  { icon: '🚫', label: 'No login' },
-];
 
 function NewRoomCard({ onBack, onEnter }) {
   const [roomId] = useState(() => generateRoomId());
@@ -84,24 +78,9 @@ export default function HomePage() {
       <div className="w-full max-w-sm relative z-10 space-y-8">
 
         {/* Hero */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl
-                          bg-blue-600/20 border border-blue-500/30 text-3xl mb-1">
-            📹
-          </div>
+        <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold text-white tracking-tight">Callspace</h1>
           <p className="text-gray-500 text-sm">Crystal-clear 1:1 video calls. No account needed.</p>
-        </div>
-
-        {/* Feature pills */}
-        <div className="flex flex-wrap justify-center gap-2">
-          {FEATURES.map(f => (
-            <span key={f.label}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full
-                         bg-white/5 border border-white/8 text-gray-400 text-xs">
-              <span>{f.icon}</span>{f.label}
-            </span>
-          ))}
         </div>
 
         {/* Card */}
