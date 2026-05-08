@@ -79,7 +79,23 @@ export function useWebRTC(roomId) {
     remoteStreamRef.current = null;
     iceCandidateQueue.current = [];
 
-    pc.onconnectionstatechange = () => setConnectionState(pc.connectionState);
+    pc.onconnectionstatechange = () => {
+      setConnectionState(pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) {
+          try {
+            const params = sender.getParameters();
+            if (params.encodings?.length) {
+              params.encodings[0].maxBitrate = 4_000_000;
+              params.encodings[0].maxFramerate = 30;
+              params.encodings[0].scaleResolutionDownBy = 1.0;
+            }
+            sender.setParameters(params);
+          } catch { /* not critical */ }
+        }
+      }
+    };
 
     pc.onnegotiationneeded = async () => {
       try {
@@ -136,6 +152,20 @@ export function useWebRTC(roomId) {
 
         const pc = makePc();
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+        // Prefer H.264 → VP9 before the first SDP exchange (must be before onnegotiationneeded fires)
+        try {
+          const videoTxcvr = pc.getTransceivers().find(t => t.sender.track?.kind === 'video');
+          if (videoTxcvr && RTCRtpReceiver.getCapabilities) {
+            const { codecs } = RTCRtpReceiver.getCapabilities('video');
+            const sorted = [
+              ...codecs.filter(c => c.mimeType === 'video/H264'),
+              ...codecs.filter(c => c.mimeType === 'video/VP9'),
+              ...codecs.filter(c => !['video/H264', 'video/VP9'].includes(c.mimeType)),
+            ];
+            videoTxcvr.setCodecPreferences(sorted);
+          }
+        } catch { /* Firefox does not support setCodecPreferences */ }
 
         socket.connect();
         socket.emit('join-room', roomId);
