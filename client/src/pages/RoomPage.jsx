@@ -141,13 +141,13 @@ export default function RoomPage() {
   const stateInfo = STATE_LABEL[connectionState] ?? STATE_LABEL.new;
 
   return (
-    <div className="h-screen bg-gray-950 flex flex-col overflow-hidden">
+    <div className="h-screen h-[100dvh] bg-gray-950 flex flex-col overflow-hidden">
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2
                       bg-black/40 backdrop-blur-xl border-b border-white/5 z-10">
-        <div className="flex items-center gap-3">
-          <span className="text-gray-500 font-mono text-xs tracking-[0.2em] uppercase">{roomId}</span>
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:block text-gray-500 font-mono text-xs tracking-[0.2em] uppercase">{roomId}</span>
           <CopyLinkButton roomId={roomId} />
         </div>
 
@@ -162,7 +162,7 @@ export default function RoomPage() {
         <div className="flex items-center gap-1.5">
           <SignalBars quality={connectionQuality} />
           <span className={`w-1.5 h-1.5 rounded-full ${stateInfo.dot}`} />
-          <span className="text-gray-500 text-xs">{stateInfo.text}</span>
+          <span className="hidden sm:block text-gray-500 text-xs">{stateInfo.text}</span>
         </div>
       </div>
 

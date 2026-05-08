@@ -103,7 +103,7 @@ function MediaButton({ icon, activeIcon, isActive, activeColor = 'bg-red-600 hov
         <button
           onClick={onToggle}
           title={tooltip}
-          className={`w-11 h-11 flex items-center justify-center rounded-full
+          className={`w-12 h-12 sm:w-11 sm:h-11 flex items-center justify-center rounded-full
                       transition-all duration-150 shadow-md select-none
                       ${isActive
                         ? `${activeColor} text-white`
@@ -230,72 +230,115 @@ export default function CallControls({
   onLeave,
 }) {
   return (
-    <div className="flex items-center justify-center gap-3 px-6 py-3
-                    bg-black/60 backdrop-blur-xl border-t border-white/5">
+    <div
+      className="bg-black/60 backdrop-blur-xl border-t border-white/5"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
+      {/* ── Secondary row (mobile only) ── */}
+      <div className="flex sm:hidden items-center justify-center gap-4 pt-2.5 px-4">
+        <ScreenShareButton
+          isScreenSharing={isScreenSharing}
+          onStart={onStartScreenShare}
+          onStop={onStopScreenShare}
+        />
 
-      <MediaButton
-        icon={<MicIcon />}     activeIcon={<MicOffIcon />}
-        isActive={isAudioMuted}
-        onToggle={onToggleAudio}
-        devices={microphones}  selectedId={selectedMicId}    onSelectDevice={onSwitchMic}
-        tooltip="Microphone"
-      />
+        <ReactionButton onReact={onReact} />
 
-      <MediaButton
-        icon={<CameraIcon />}  activeIcon={<CameraOffIcon />}
-        isActive={isVideoOff}
-        onToggle={onToggleVideo}
-        devices={cameras}      selectedId={selectedCameraId} onSelectDevice={onSwitchCamera}
-        tooltip="Camera"
-      />
+        <div className="relative">
+          <button
+            onClick={onToggleChat}
+            title="Chat"
+            className="w-11 h-11 flex items-center justify-center rounded-full
+                       bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
+          >
+            <ChatIcon />
+          </button>
+          {chatUnread > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center
+                             rounded-full bg-blue-500 text-white text-[9px] font-bold pointer-events-none">
+              {chatUnread > 9 ? '9+' : chatUnread}
+            </span>
+          )}
+        </div>
 
-      <ScreenShareButton
-        isScreenSharing={isScreenSharing}
-        onStart={onStartScreenShare}
-        onStop={onStopScreenShare}
-      />
-
-      <ReactionButton onReact={onReact} />
-
-      {/* Chat button with unread badge */}
-      <div className="relative">
         <button
-          onClick={onToggleChat}
-          title="Chat (C)"
+          onClick={onTogglePiP}
+          title="Picture in Picture"
           className="w-11 h-11 flex items-center justify-center rounded-full
                      bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
         >
-          <ChatIcon />
+          <PiPIcon />
         </button>
-        {chatUnread > 0 && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center
-                           rounded-full bg-blue-500 text-white text-[9px] font-bold pointer-events-none">
-            {chatUnread > 9 ? '9+' : chatUnread}
-          </span>
-        )}
       </div>
 
-      {/* PiP button */}
-      <button
-        onClick={onTogglePiP}
-        title="Picture in Picture"
-        className="w-11 h-11 flex items-center justify-center rounded-full
-                   bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
-      >
-        <PiPIcon />
-      </button>
+      {/* ── Primary row ── */}
+      <div className="flex items-center justify-center gap-3 sm:gap-3 px-4 sm:px-6 py-2.5 sm:py-3">
 
-      <div className="w-px h-7 bg-white/10 mx-1" />
+        <MediaButton
+          icon={<MicIcon />}     activeIcon={<MicOffIcon />}
+          isActive={isAudioMuted}
+          onToggle={onToggleAudio}
+          devices={microphones}  selectedId={selectedMicId}    onSelectDevice={onSwitchMic}
+          tooltip="Microphone"
+        />
 
-      <button
-        onClick={onLeave}
-        title="Leave call"
-        className="w-12 h-11 flex items-center justify-center rounded-full
-                   bg-red-600 hover:bg-red-500 active:scale-95
-                   text-white transition-all duration-150 shadow-md"
-      >
-        <EndCallIcon />
-      </button>
+        <MediaButton
+          icon={<CameraIcon />}  activeIcon={<CameraOffIcon />}
+          isActive={isVideoOff}
+          onToggle={onToggleVideo}
+          devices={cameras}      selectedId={selectedCameraId} onSelectDevice={onSwitchCamera}
+          tooltip="Camera"
+        />
+
+        {/* Desktop-only secondary controls — hidden on mobile (shown in secondary row above) */}
+        <div className="hidden sm:flex items-center gap-3">
+          <ScreenShareButton
+            isScreenSharing={isScreenSharing}
+            onStart={onStartScreenShare}
+            onStop={onStopScreenShare}
+          />
+
+          <ReactionButton onReact={onReact} />
+
+          <div className="relative">
+            <button
+              onClick={onToggleChat}
+              title="Chat"
+              className="w-11 h-11 flex items-center justify-center rounded-full
+                         bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
+            >
+              <ChatIcon />
+            </button>
+            {chatUnread > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center
+                               rounded-full bg-blue-500 text-white text-[9px] font-bold pointer-events-none">
+                {chatUnread > 9 ? '9+' : chatUnread}
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={onTogglePiP}
+            title="Picture in Picture"
+            className="w-11 h-11 flex items-center justify-center rounded-full
+                       bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
+          >
+            <PiPIcon />
+          </button>
+        </div>
+
+        <div className="w-px h-7 bg-white/10 mx-1" />
+
+        <button
+          onClick={onLeave}
+          title="Leave call"
+          className="w-12 h-12 sm:w-12 sm:h-11 flex items-center justify-center rounded-full
+                     bg-red-600 hover:bg-red-500 active:scale-95
+                     text-white transition-all duration-150 shadow-md"
+        >
+          <EndCallIcon />
+        </button>
+      </div>
     </div>
   );
 }

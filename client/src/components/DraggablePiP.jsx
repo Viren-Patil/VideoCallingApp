@@ -10,7 +10,7 @@ export default function DraggablePiP({ stream, label, showPlaceholder = false, s
   // Lazy initialiser so window is available on first render
   const [pos, setPos] = useState(() => ({
     x: window.innerWidth - PIP_W - 16,
-    y: window.innerHeight - PIP_H - 110, // start above the control bar
+    y: window.innerHeight - PIP_H - 150, // start above the control bar (150 clears 2-row mobile bar)
   }));
 
   const posRef   = useRef(pos);

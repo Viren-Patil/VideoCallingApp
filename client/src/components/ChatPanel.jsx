@@ -26,7 +26,8 @@ export default function ChatPanel({ messages, onSendMessage, onClose }) {
   };
 
   return (
-    <div className="w-72 flex flex-col bg-gray-900 border-l border-white/8 shrink-0">
+    <div className="absolute inset-0 sm:relative sm:inset-auto sm:w-72 z-20
+                    flex flex-col bg-gray-900/97 sm:bg-gray-900 sm:border-l border-white/8 shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
         <span className="text-white font-medium text-sm">Chat</span>
