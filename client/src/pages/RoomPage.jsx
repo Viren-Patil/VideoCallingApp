@@ -6,12 +6,12 @@ import DraggablePiP from '../components/DraggablePiP';
 import CallControls from '../components/CallControls';
 
 const STATE_LABEL = {
-  new:          { text: 'Initialising…',    color: 'bg-yellow-500' },
-  connecting:   { text: 'Connecting…',      color: 'bg-yellow-500' },
-  connected:    { text: 'Connected',         color: 'bg-green-500'  },
-  disconnected: { text: 'Reconnecting…',    color: 'bg-red-500'    },
-  failed:       { text: 'Connection failed', color: 'bg-red-500'    },
-  closed:       { text: 'Disconnected',      color: 'bg-gray-500'   },
+  new:          { text: 'Initialising…',    dot: 'bg-yellow-400 animate-pulse' },
+  connecting:   { text: 'Connecting…',      dot: 'bg-yellow-400 animate-pulse' },
+  connected:    { text: 'Connected',         dot: 'bg-green-400'                },
+  disconnected: { text: 'Reconnecting…',    dot: 'bg-red-400 animate-pulse'    },
+  failed:       { text: 'Connection failed', dot: 'bg-red-400'                  },
+  closed:       { text: 'Disconnected',      dot: 'bg-gray-500'                 },
 };
 
 export default function RoomPage() {
@@ -19,9 +19,7 @@ export default function RoomPage() {
   const navigate = useNavigate();
   const roomId = searchParams.get('room');
 
-  useEffect(() => {
-    if (!roomId) navigate('/');
-  }, [roomId, navigate]);
+  useEffect(() => { if (!roomId) navigate('/'); }, [roomId, navigate]);
 
   const {
     localStream, remoteStream, connectionState, peerJoined, mediaError,
@@ -54,53 +52,59 @@ export default function RoomPage() {
   }
 
   const stateInfo = STATE_LABEL[connectionState] ?? STATE_LABEL.new;
-  const isPulsing = connectionState === 'new' || connectionState === 'connecting';
 
   return (
     <div className="h-screen bg-gray-950 flex flex-col overflow-hidden">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-900/80 backdrop-blur-md border-b border-gray-800 z-10">
-        <span className="text-white font-mono text-sm tracking-widest">{roomId}</span>
+
+      {/* Top bar — slim */}
+      <div className="flex items-center justify-between px-5 py-2
+                      bg-black/40 backdrop-blur-xl border-b border-white/5 z-10">
+        <span className="text-gray-400 font-mono text-xs tracking-[0.2em] uppercase">
+          {roomId}
+        </span>
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${stateInfo.color} ${isPulsing ? 'animate-pulse' : ''}`} />
-          <span className="text-gray-400 text-xs">{stateInfo.text}</span>
+          <span className={`w-1.5 h-1.5 rounded-full ${stateInfo.dot}`} />
+          <span className="text-gray-500 text-xs">{stateInfo.text}</span>
         </div>
       </div>
 
-      {/* Video area */}
-      <div className="relative flex-1 overflow-hidden">
+      {/* Video area — fills all remaining space */}
+      <div className="relative flex-1 overflow-hidden bg-gray-950">
         {remoteStream ? (
-          <VideoTile stream={remoteStream} muted={false} label="Peer" className="w-full h-full" />
+          <VideoTile
+            stream={remoteStream}
+            muted={false}
+            className="w-full h-full"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center space-y-3">
-              <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-gray-300 text-lg font-medium">
+            <div className="text-center space-y-4">
+              <div className="w-14 h-14 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin mx-auto opacity-70" />
+              <p className="text-gray-300 text-base font-medium">
                 {peerJoined ? 'Establishing connection…' : 'Waiting for someone to join…'}
               </p>
-              <p className="text-gray-500 text-sm">
-                Share this room code:{' '}
-                <span className="text-white font-mono font-bold">{roomId}</span>
-              </p>
+              <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5">
+                <span className="text-gray-500 text-xs">Room code</span>
+                <span className="text-white font-mono font-semibold text-sm tracking-widest">{roomId}</span>
+              </div>
             </div>
           </div>
         )}
-
       </div>
 
-      {/* Local PiP — fixed position, draggable, always above the control bar */}
+      {/* Draggable local PiP — fixed, always above everything */}
       <DraggablePiP
         stream={localStream}
-        label={isScreenSharing ? 'Sharing screen' : 'You'}
+        label={isScreenSharing ? 'Sharing' : 'You'}
       />
 
-      {/* Controls */}
+      {/* Control bar — thin single row */}
       <CallControls
-        isAudioMuted={isAudioMuted}       onToggleAudio={toggleAudio}
-        microphones={microphones}          selectedMicId={selectedMicId}      onSwitchMic={switchMicrophone}
-        isVideoOff={isVideoOff}            onToggleVideo={toggleVideo}
-        cameras={cameras}                  selectedCameraId={selectedCameraId} onSwitchCamera={switchCamera}
-        isScreenSharing={isScreenSharing}  onStartScreenShare={startScreenShare} onStopScreenShare={stopScreenShare}
+        isAudioMuted={isAudioMuted}        onToggleAudio={toggleAudio}
+        microphones={microphones}           selectedMicId={selectedMicId}       onSwitchMic={switchMicrophone}
+        isVideoOff={isVideoOff}             onToggleVideo={toggleVideo}
+        cameras={cameras}                   selectedCameraId={selectedCameraId}  onSwitchCamera={switchCamera}
+        isScreenSharing={isScreenSharing}   onStartScreenShare={startScreenShare} onStopScreenShare={stopScreenShare}
         onLeave={leaveCall}
       />
     </div>

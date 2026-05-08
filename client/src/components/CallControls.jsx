@@ -1,143 +1,179 @@
-import { useState } from 'react';
-import DeviceSelector from './DeviceSelector';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
-function ControlButton({ onClick, active, activeClass, inactiveClass, title, children }) {
+function useClickOutside(ref, onClose) {
+  const handler = useCallback(
+    (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); },
+    [ref, onClose]
+  );
+  useEffect(() => {
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [handler]);
+}
+
+// A single round button with an optional small chevron that opens a device picker above it.
+function MediaButton({ icon, activeIcon, isActive, activeColor = 'bg-red-600 hover:bg-red-500', onToggle, devices, selectedId, onSelectDevice, tooltip }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useClickOutside(ref, () => setOpen(false));
+
+  const hasOptions = devices?.length > 1;
+
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      className={`w-13 h-13 w-12 h-12 flex items-center justify-center rounded-full text-xl
-                  transition-colors duration-150 shadow-md
-                  ${active ? activeClass : inactiveClass}`}
-    >
-      {children}
-    </button>
+    <div ref={ref} className="relative flex flex-col items-center">
+      <div className="relative">
+        {/* Main action button */}
+        <button
+          onClick={onToggle}
+          title={tooltip}
+          className={`w-11 h-11 flex items-center justify-center rounded-full text-lg
+                      transition-all duration-150 shadow-md select-none
+                      ${isActive
+                        ? `${activeColor} text-white`
+                        : 'bg-white/10 hover:bg-white/20 text-white'}`}
+        >
+          {isActive ? activeIcon : icon}
+        </button>
+
+        {/* Chevron — opens device picker */}
+        {hasOptions && (
+          <button
+            onClick={() => setOpen(v => !v)}
+            title={`Choose ${tooltip}`}
+            className="absolute -bottom-1 -right-1.5 w-[18px] h-[18px]
+                       flex items-center justify-center rounded-full
+                       bg-gray-600 hover:bg-gray-500 border border-gray-800
+                       text-white transition-colors"
+            style={{ fontSize: 9 }}
+          >
+            {open ? '▼' : '▲'}
+          </button>
+        )}
+      </div>
+
+      {/* Device picker popover */}
+      {open && hasOptions && (
+        <div className="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 z-50
+                        bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl
+                        p-2 w-56 backdrop-blur-xl">
+          <p className="text-gray-500 text-[10px] uppercase tracking-widest px-2 pt-1 pb-1.5">
+            {tooltip}
+          </p>
+          {devices.map((d) => {
+            const isSelected = selectedId === d.deviceId;
+            return (
+              <button
+                key={d.deviceId}
+                onClick={() => { onSelectDevice(d.deviceId); setOpen(false); }}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-2
+                            transition-colors duration-100
+                            ${isSelected
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-300 hover:bg-gray-800'}`}
+              >
+                <span className={`w-3 shrink-0 text-[10px] ${isSelected ? 'opacity-100' : 'opacity-0'}`}>✓</span>
+                <span className="truncate">{d.label || `Device ${d.deviceId.slice(0, 8)}`}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Screen share button with its own "Screen only / Screen + Audio" popover.
+function ScreenShareButton({ isScreenSharing, onStart, onStop }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useClickOutside(ref, () => setOpen(false));
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => isScreenSharing ? onStop() : setOpen(v => !v)}
+        title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
+        className={`w-11 h-11 flex items-center justify-center rounded-full text-lg
+                    transition-all duration-150 shadow-md select-none
+                    ${isScreenSharing
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white ring-2 ring-blue-400/40'
+                      : 'bg-white/10 hover:bg-white/20 text-white'}`}
+      >
+        🖥️
+      </button>
+
+      {open && !isScreenSharing && (
+        <div className="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 z-50
+                        bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl
+                        p-2 w-48 backdrop-blur-xl">
+          <p className="text-gray-500 text-[10px] uppercase tracking-widest px-2 pt-1 pb-1.5">
+            Share screen
+          </p>
+          <button
+            onClick={() => { setOpen(false); onStart(false); }}
+            className="w-full text-left px-3 py-2 rounded-xl text-sm text-gray-300
+                       hover:bg-gray-800 transition-colors flex items-center gap-2"
+          >
+            <span>🖥️</span> Screen only
+          </button>
+          <button
+            onClick={() => { setOpen(false); onStart(true); }}
+            className="w-full text-left px-3 py-2 rounded-xl text-sm text-gray-300
+                       hover:bg-gray-800 transition-colors flex items-center gap-2"
+          >
+            <span>🔊</span> Screen + Audio
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function CallControls({
-  // Audio
-  isAudioMuted, onToggleAudio,
-  microphones, selectedMicId, onSwitchMic,
-  // Video
-  isVideoOff, onToggleVideo,
-  cameras, selectedCameraId, onSwitchCamera,
-  // Screen share
+  isAudioMuted, onToggleAudio, microphones, selectedMicId, onSwitchMic,
+  isVideoOff,   onToggleVideo,  cameras,     selectedCameraId, onSwitchCamera,
   isScreenSharing, onStartScreenShare, onStopScreenShare,
-  // Leave
   onLeave,
 }) {
-  const [showAudioPrompt, setShowAudioPrompt] = useState(false);
-
-  const handleScreenShareClick = () => {
-    if (isScreenSharing) {
-      onStopScreenShare();
-    } else {
-      setShowAudioPrompt(true);
-    }
-  };
-
   return (
-    <>
-      {/* Screen share audio prompt */}
-      {showAudioPrompt && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-2xl p-6 space-y-4 w-72 ring-1 ring-gray-700 shadow-2xl">
-            <h3 className="text-white font-semibold text-base">Share screen audio?</h3>
-            <p className="text-gray-400 text-sm">Include system audio in the screen share (Chrome only).</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setShowAudioPrompt(false); onStartScreenShare(false); }}
-                className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors"
-              >
-                Screen only
-              </button>
-              <button
-                onClick={() => { setShowAudioPrompt(false); onStartScreenShare(true); }}
-                className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors"
-              >
-                Screen + Audio
-              </button>
-            </div>
-            <button
-              onClick={() => setShowAudioPrompt(false)}
-              className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm rounded-xl transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+    <div className="flex items-center justify-center gap-3 px-6 py-3
+                    bg-black/60 backdrop-blur-xl border-t border-white/5">
 
-      <div className="flex items-end justify-center gap-5 px-6 py-4
-                      bg-gray-900/80 backdrop-blur-md border-t border-gray-800">
+      <MediaButton
+        icon="🎤" activeIcon="🔇"
+        isActive={isAudioMuted}
+        onToggle={onToggleAudio}
+        devices={microphones} selectedId={selectedMicId} onSelectDevice={onSwitchMic}
+        tooltip="Microphone"
+      />
 
-        {/* Mic section */}
-        <div className="flex flex-col items-center gap-1.5">
-          <DeviceSelector
-            devices={microphones}
-            selectedId={selectedMicId}
-            onSelect={onSwitchMic}
-            label="Mic"
-          />
-          <ControlButton
-            onClick={onToggleAudio}
-            active={isAudioMuted}
-            activeClass="bg-red-600 hover:bg-red-500 text-white"
-            inactiveClass="bg-gray-700 hover:bg-gray-600 text-white"
-            title={isAudioMuted ? 'Unmute' : 'Mute'}
-          >
-            {isAudioMuted ? '🔇' : '🎤'}
-          </ControlButton>
-        </div>
+      <MediaButton
+        icon="📹" activeIcon="📷"
+        isActive={isVideoOff}
+        onToggle={onToggleVideo}
+        devices={cameras} selectedId={selectedCameraId} onSelectDevice={onSwitchCamera}
+        tooltip="Camera"
+      />
 
-        {/* Camera section */}
-        <div className="flex flex-col items-center gap-1.5">
-          <DeviceSelector
-            devices={cameras}
-            selectedId={selectedCameraId}
-            onSelect={onSwitchCamera}
-            label="Camera"
-          />
-          <ControlButton
-            onClick={onToggleVideo}
-            active={isVideoOff}
-            activeClass="bg-red-600 hover:bg-red-500 text-white"
-            inactiveClass="bg-gray-700 hover:bg-gray-600 text-white"
-            title={isVideoOff ? 'Turn camera on' : 'Turn camera off'}
-          >
-            {isVideoOff ? '📷' : '📹'}
-          </ControlButton>
-        </div>
+      <ScreenShareButton
+        isScreenSharing={isScreenSharing}
+        onStart={onStartScreenShare}
+        onStop={onStopScreenShare}
+      />
 
-        {/* Screen share */}
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="h-[38px]" /> {/* spacer to align with device selector rows */}
-          <ControlButton
-            onClick={handleScreenShareClick}
-            active={isScreenSharing}
-            activeClass="bg-blue-600 hover:bg-blue-500 text-white"
-            inactiveClass="bg-gray-700 hover:bg-gray-600 text-white"
-            title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
-          >
-            🖥️
-          </ControlButton>
-        </div>
+      {/* Divider */}
+      <div className="w-px h-7 bg-white/10 mx-1" />
 
-        {/* Leave */}
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="h-[38px]" />
-          <button
-            onClick={onLeave}
-            title="Leave call"
-            className="w-12 h-12 flex items-center justify-center rounded-full
-                       bg-red-600 hover:bg-red-500 active:bg-red-700
-                       text-white text-xl transition-colors duration-150 shadow-lg"
-          >
-            📵
-          </button>
-        </div>
-      </div>
-    </>
+      {/* Leave */}
+      <button
+        onClick={onLeave}
+        title="Leave call"
+        className="w-11 h-11 flex items-center justify-center rounded-full
+                   bg-red-600 hover:bg-red-500 active:scale-95
+                   text-white text-lg transition-all duration-150 shadow-md"
+      >
+        📵
+      </button>
+    </div>
   );
 }
