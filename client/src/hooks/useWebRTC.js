@@ -50,6 +50,7 @@ export function useWebRTC(roomId) {
   const localStreamRef = useRef(null);   // camera + mic tracks (source of truth)
   const cameraTrackRef = useRef(null);   // current camera track — preserved across screen share
   const screenStreamRef = useRef(null);
+  const audioContextRef = useRef(null);  // AudioContext for mic+screen audio mixing
   const remoteStreamRef = useRef(null);
   const politeRef = useRef(false);
   const makingOffer = useRef(false);
@@ -244,9 +245,11 @@ export function useWebRTC(roomId) {
       navigator.mediaDevices.removeEventListener('devicechange', enumerateDevices);
       localStreamRef.current?.getTracks().forEach(t => t.stop());
       screenStreamRef.current?.getTracks().forEach(t => t.stop());
+      audioContextRef.current?.close();
       localStreamRef.current = null;
       cameraTrackRef.current = null;
       screenStreamRef.current = null;
+      audioContextRef.current = null;
       pcRef.current?.close();
       pcRef.current = null;
       socket.emit('leave-room');
@@ -345,6 +348,17 @@ export function useWebRTC(roomId) {
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
     screenStreamRef.current = null;
 
+    // Tear down the audio mixer and restore the raw mic track
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+      const micTrack = localStreamRef.current?.getAudioTracks()[0];
+      if (micTrack) {
+        const audioSender = pcRef.current?.getSenders().find(s => s.track?.kind === 'audio');
+        if (audioSender) await audioSender.replaceTrack(micTrack);
+      }
+    }
+
     const cameraTrack = cameraTrackRef.current;
     const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
 
@@ -369,7 +383,7 @@ export function useWebRTC(roomId) {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: { ideal: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
+        audio: true, // shows native dialog with audio toggle — user chooses
       });
       screenStreamRef.current = screenStream;
 
@@ -390,7 +404,25 @@ export function useWebRTC(roomId) {
         } catch { /* not critical */ }
       }
 
-      // Audio sender is intentionally left untouched — mic stays active during screen share
+      // If the user chose to share audio, mix it with the mic so both are heard
+      const screenAudioTrack = screenStream.getAudioTracks()[0];
+      if (screenAudioTrack) {
+        const micTrack = localStreamRef.current?.getAudioTracks()[0];
+        if (micTrack) {
+          const ctx = new AudioContext();
+          audioContextRef.current = ctx;
+          const micSource    = ctx.createMediaStreamSource(new MediaStream([micTrack]));
+          const screenSource = ctx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
+          const destination  = ctx.createMediaStreamDestination();
+          micSource.connect(destination);
+          screenSource.connect(destination);
+          const mixedTrack = destination.stream.getAudioTracks()[0];
+          const audioSender = pcRef.current?.getSenders().find(s => s.track?.kind === 'audio');
+          if (audioSender) await audioSender.replaceTrack(mixedTrack);
+        }
+      }
+      // If no screen audio was selected, the mic sender is left untouched
+
       const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
       setLocalStream(new MediaStream([...audioTracks, screenVideoTrack]));
 
