@@ -1,9 +1,12 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useWebRTC } from '../hooks/useWebRTC';
+import { useReactions } from '../hooks/useReactions';
+import { useCallTimer } from '../hooks/useCallTimer';
 import VideoTile from '../components/VideoTile';
 import DraggablePiP from '../components/DraggablePiP';
 import CallControls from '../components/CallControls';
+import ReactionOverlay from '../components/ReactionOverlay';
 
 const STATE_LABEL = {
   new:          { text: 'Initialising…',    dot: 'bg-yellow-400 animate-pulse' },
@@ -13,6 +16,26 @@ const STATE_LABEL = {
   failed:       { text: 'Connection failed', dot: 'bg-red-400'                  },
   closed:       { text: 'Disconnected',      dot: 'bg-gray-500'                 },
 };
+
+function CopyLinkButton({ roomId }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/room?room=${roomId}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      onClick={copy}
+      title="Copy invite link"
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs
+                 bg-white/5 hover:bg-white/10 border border-white/10
+                 text-gray-400 hover:text-gray-200 transition-all duration-150"
+    >
+      {copied ? '✓ Copied' : '🔗 Invite'}
+    </button>
+  );
+}
 
 export default function RoomPage() {
   const [searchParams] = useSearchParams();
@@ -30,6 +53,9 @@ export default function RoomPage() {
     startScreenShare, stopScreenShare,
     leaveCall,
   } = useWebRTC(roomId);
+
+  const { activeReactions, sendReaction } = useReactions();
+  const callTimer = useCallTimer(connectionState);
 
   if (!roomId) return null;
 
@@ -56,55 +82,67 @@ export default function RoomPage() {
   return (
     <div className="h-screen bg-gray-950 flex flex-col overflow-hidden">
 
-      {/* Top bar — slim */}
-      <div className="flex items-center justify-between px-5 py-2
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2
                       bg-black/40 backdrop-blur-xl border-b border-white/5 z-10">
-        <span className="text-gray-400 font-mono text-xs tracking-[0.2em] uppercase">
-          {roomId}
-        </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <span className="text-gray-500 font-mono text-xs tracking-[0.2em] uppercase">{roomId}</span>
+          <CopyLinkButton roomId={roomId} />
+        </div>
+
+        {/* Centre: call timer */}
+        {callTimer && (
+          <span className="absolute left-1/2 -translate-x-1/2 text-gray-300 text-sm font-mono tabular-nums">
+            {callTimer}
+          </span>
+        )}
+
+        {/* Right: connection indicator */}
+        <div className="flex items-center gap-1.5">
           <span className={`w-1.5 h-1.5 rounded-full ${stateInfo.dot}`} />
           <span className="text-gray-500 text-xs">{stateInfo.text}</span>
         </div>
       </div>
 
-      {/* Video area — fills all remaining space */}
+      {/* Video area */}
       <div className="relative flex-1 overflow-hidden bg-gray-950">
         {remoteStream ? (
-          <VideoTile
-            stream={remoteStream}
-            muted={false}
-            className="w-full h-full"
-          />
+          <VideoTile stream={remoteStream} muted={false} className="w-full h-full" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <div className="w-14 h-14 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin mx-auto opacity-70" />
-              <p className="text-gray-300 text-base font-medium">
-                {peerJoined ? 'Establishing connection…' : 'Waiting for someone to join…'}
-              </p>
-              <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5">
-                <span className="text-gray-500 text-xs">Room code</span>
-                <span className="text-white font-mono font-semibold text-sm tracking-widest">{roomId}</span>
+            <div className="text-center space-y-5">
+              <div className="relative mx-auto w-16 h-16">
+                <div className="absolute inset-0 rounded-full border-[3px] border-blue-500/30 animate-ping" />
+                <div className="w-16 h-16 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-gray-200 text-base font-medium">
+                  {peerJoined ? 'Establishing connection…' : 'Waiting for someone to join…'}
+                </p>
+                <p className="text-gray-500 text-sm">
+                  Share your invite link or room code{' '}
+                  <span className="text-white font-mono font-semibold tracking-widest">{roomId}</span>
+                </p>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Draggable local PiP — fixed, always above everything */}
-      <DraggablePiP
-        stream={localStream}
-        label={isScreenSharing ? 'Sharing' : 'You'}
-      />
+      {/* Floating reaction emojis */}
+      <ReactionOverlay reactions={activeReactions} />
 
-      {/* Control bar — thin single row */}
+      {/* Draggable local PiP */}
+      <DraggablePiP stream={localStream} label={isScreenSharing ? 'Sharing' : 'You'} />
+
+      {/* Control bar */}
       <CallControls
         isAudioMuted={isAudioMuted}        onToggleAudio={toggleAudio}
         microphones={microphones}           selectedMicId={selectedMicId}       onSwitchMic={switchMicrophone}
         isVideoOff={isVideoOff}             onToggleVideo={toggleVideo}
         cameras={cameras}                   selectedCameraId={selectedCameraId}  onSwitchCamera={switchCamera}
         isScreenSharing={isScreenSharing}   onStartScreenShare={startScreenShare} onStopScreenShare={stopScreenShare}
+        onReact={sendReaction}
         onLeave={leaveCall}
       />
     </div>

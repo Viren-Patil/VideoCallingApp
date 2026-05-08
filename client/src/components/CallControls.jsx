@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { REACTIONS } from '../hooks/useReactions';
 
 function useClickOutside(ref, onClose) {
   const handler = useCallback(
@@ -129,10 +130,51 @@ function ScreenShareButton({ isScreenSharing, onStart, onStop }) {
   );
 }
 
+// Reaction picker button — opens an emoji tray above the control bar
+function ReactionButton({ onReact }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useClickOutside(ref, () => setOpen(false));
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Send a reaction"
+        className="w-11 h-11 flex items-center justify-center rounded-full text-lg
+                   bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
+      >
+        😊
+      </button>
+
+      {open && (
+        <div className="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 z-50
+                        bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl
+                        px-3 py-2.5 backdrop-blur-xl">
+          <div className="flex gap-1">
+            {Object.entries(REACTIONS).map(([key, emoji]) => (
+              <button
+                key={key}
+                onClick={() => { onReact(key); setOpen(false); }}
+                className="w-10 h-10 flex items-center justify-center rounded-xl text-xl
+                           hover:bg-white/10 active:scale-90 transition-all duration-100"
+                title={key}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CallControls({
   isAudioMuted, onToggleAudio, microphones, selectedMicId, onSwitchMic,
   isVideoOff,   onToggleVideo,  cameras,     selectedCameraId, onSwitchCamera,
   isScreenSharing, onStartScreenShare, onStopScreenShare,
+  onReact,
   onLeave,
 }) {
   return (
@@ -160,6 +202,8 @@ export default function CallControls({
         onStart={onStartScreenShare}
         onStop={onStopScreenShare}
       />
+
+      <ReactionButton onReact={onReact} />
 
       {/* Divider */}
       <div className="w-px h-7 bg-white/10 mx-1" />
