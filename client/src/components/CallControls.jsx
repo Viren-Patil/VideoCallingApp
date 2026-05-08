@@ -229,6 +229,8 @@ export default function CallControls({
   onTogglePiP,
   onLeave,
 }) {
+  const canScreenShare = typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+
   return (
     <div
       className="bg-black/60 backdrop-blur-xl border-t border-white/5"
@@ -236,11 +238,13 @@ export default function CallControls({
     >
       {/* ── Secondary row (mobile only) ── */}
       <div className="flex sm:hidden items-center justify-center gap-4 pt-2.5 px-4">
-        <ScreenShareButton
-          isScreenSharing={isScreenSharing}
-          onStart={onStartScreenShare}
-          onStop={onStopScreenShare}
-        />
+        {canScreenShare && (
+          <ScreenShareButton
+            isScreenSharing={isScreenSharing}
+            onStart={onStartScreenShare}
+            onStop={onStopScreenShare}
+          />
+        )}
 
         <ReactionButton onReact={onReact} />
 
@@ -292,11 +296,13 @@ export default function CallControls({
 
         {/* Desktop-only secondary controls — hidden on mobile (shown in secondary row above) */}
         <div className="hidden sm:flex items-center gap-3">
-          <ScreenShareButton
-            isScreenSharing={isScreenSharing}
-            onStart={onStartScreenShare}
-            onStop={onStopScreenShare}
-          />
+          {canScreenShare && (
+            <ScreenShareButton
+              isScreenSharing={isScreenSharing}
+              onStart={onStartScreenShare}
+              onStop={onStopScreenShare}
+            />
+          )}
 
           <ReactionButton onReact={onReact} />
 

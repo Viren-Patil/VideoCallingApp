@@ -109,7 +109,7 @@ export default function RoomPage() {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (e.key === 'm' || e.key === 'M') toggleAudio();
       else if (e.key === 'v' || e.key === 'V') toggleVideo();
-      else if (e.key === 's' || e.key === 'S') {
+      else if ((e.key === 's' || e.key === 'S') && typeof navigator.mediaDevices?.getDisplayMedia === 'function') {
         if (isScreenSharing) stopScreenShare();
         else startScreenShare();
       }
