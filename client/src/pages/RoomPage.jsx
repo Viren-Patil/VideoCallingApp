@@ -2,6 +2,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import VideoTile from '../components/VideoTile';
+import DraggablePiP from '../components/DraggablePiP';
 import CallControls from '../components/CallControls';
 
 const STATE_LABEL = {
@@ -85,14 +86,13 @@ export default function RoomPage() {
           </div>
         )}
 
-        {/* Local PiP */}
-        <VideoTile
-          stream={localStream}
-          muted={true}
-          label={isScreenSharing ? 'Sharing screen' : 'You'}
-          className="absolute bottom-4 right-4 w-44 h-32 rounded-xl ring-2 ring-gray-700 shadow-2xl"
-        />
       </div>
+
+      {/* Local PiP — fixed position, draggable, always above the control bar */}
+      <DraggablePiP
+        stream={localStream}
+        label={isScreenSharing ? 'Sharing screen' : 'You'}
+      />
 
       {/* Controls */}
       <CallControls
