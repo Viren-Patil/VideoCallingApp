@@ -6,20 +6,26 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
     {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turn:global.relay.metered.ca:80',
+      username: 'b8b85136b2f0a0b4391d8ed5',
+      credential: 'MEv02rwJBaYuNy+s',
     },
     {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+      username: 'b8b85136b2f0a0b4391d8ed5',
+      credential: 'MEv02rwJBaYuNy+s',
     },
     {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turn:global.relay.metered.ca:443',
+      username: 'b8b85136b2f0a0b4391d8ed5',
+      credential: 'MEv02rwJBaYuNy+s',
+    },
+    {
+      urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+      username: 'b8b85136b2f0a0b4391d8ed5',
+      credential: 'MEv02rwJBaYuNy+s',
     },
   ],
 };
