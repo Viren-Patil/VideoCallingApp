@@ -166,7 +166,7 @@ export default function RoomPage() {
         </div>
       </div>
 
-      {/* Video area + chat panel */}
+      {/* Video area + desktop chat panel */}
       <div className="relative flex-1 overflow-hidden flex min-h-0">
 
         {/* Main video */}
@@ -203,15 +203,42 @@ export default function RoomPage() {
           )}
         </div>
 
-        {/* Chat panel */}
-        {chatOpen && (
-          <ChatPanel
-            messages={messages}
-            onSendMessage={sendMessage}
-            onClose={() => setChatOpen(false)}
-          />
-        )}
+        {/* Desktop chat — always in DOM, animates width so video shrinks smoothly */}
+        <div
+          className="hidden sm:block overflow-hidden shrink-0 transition-[width] duration-300 ease-in-out"
+          style={{ width: chatOpen ? '300px' : '0px' }}
+        >
+          <div className="w-[300px] h-full border-l border-white/[0.06]">
+            <ChatPanel
+              messages={messages}
+              onSendMessage={sendMessage}
+              onClose={() => setChatOpen(false)}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* Mobile chat — fixed bottom sheet, slides up over the video */}
+      <div
+        className={`sm:hidden fixed inset-x-0 bottom-0 z-[56] rounded-t-3xl overflow-hidden
+                    transition-transform duration-300 ease-out
+                    ${chatOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        style={{ height: '70%' }}
+      >
+        <ChatPanel
+          messages={messages}
+          onSendMessage={sendMessage}
+          onClose={() => setChatOpen(false)}
+        />
+      </div>
+
+      {/* Mobile backdrop */}
+      <div
+        className={`sm:hidden fixed inset-0 z-[55] bg-black/60 backdrop-blur-sm
+                    transition-opacity duration-300
+                    ${chatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setChatOpen(false)}
+      />
 
       {/* Floating reaction emojis */}
       <ReactionOverlay reactions={activeReactions} />
@@ -240,7 +267,7 @@ export default function RoomPage() {
 
       {/* Leave confirmation modal */}
       {confirmLeave && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-gray-900 border border-white/10 rounded-2xl shadow-2xl p-6 w-80 space-y-4">
             <p className="text-white font-semibold text-lg text-center">Leave call?</p>
             <div className="flex gap-3">
