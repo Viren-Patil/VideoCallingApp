@@ -107,7 +107,7 @@ export default function RoomPage() {
       {/* Video area */}
       <div className="relative flex-1 overflow-hidden bg-gray-950">
         {remoteStream ? (
-          <VideoTile stream={remoteStream} muted={false} showPlaceholder={isRemoteVideoOff} className="w-full h-full" />
+          <VideoTile stream={remoteStream} muted={false} showPlaceholder={isRemoteVideoOff} objectFit="contain" className="w-full h-full" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center space-y-5">

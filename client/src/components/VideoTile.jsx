@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export default function VideoTile({ stream, muted = false, label, className = '', showPlaceholder = false }) {
+export default function VideoTile({ stream, muted = false, label, className = '', showPlaceholder = false, objectFit = 'cover' }) {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export default function VideoTile({ stream, muted = false, label, className = ''
         ref={videoRef}
         autoPlay
         playsInline
-        className={`w-full h-full object-cover transition-opacity duration-300 ${noVideo ? 'opacity-0' : 'opacity-100'}`}
+        className={`w-full h-full transition-opacity duration-300 ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${noVideo ? 'opacity-0' : 'opacity-100'}`}
       />
 
       {/* Placeholder — shown when stream is absent or video is toggled off */}
