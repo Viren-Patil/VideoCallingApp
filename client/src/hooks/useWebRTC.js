@@ -299,21 +299,28 @@ export function useWebRTC(roomId) {
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
     screenStreamRef.current = null;
 
-    // Restore camera track on the video sender
     const cameraTrack = cameraTrackRef.current;
-    if (cameraTrack) {
-      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
-      if (sender) await sender.replaceTrack(cameraTrack);
+    const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
+
+    if (sender && cameraTrack) {
+      await sender.replaceTrack(cameraTrack);
+      // Restore camera bitrate (~4 Mbps)
+      try {
+        const params = sender.getParameters();
+        if (params.encodings?.length) {
+          params.encodings[0].maxBitrate = 4_000_000;
+        }
+        await sender.setParameters(params);
+      } catch { /* not critical */ }
     }
 
-    // Restore mic track on audio sender (in case we swapped it for system audio)
+    // Restore mic track if system audio was swapped in
     const micTrack = localStreamRef.current?.getAudioTracks()[0];
     if (micTrack) {
       const audioSender = pcRef.current?.getSenders().find(s => s.track?.kind === 'audio');
       if (audioSender) await audioSender.replaceTrack(micTrack);
     }
 
-    // Restore camera preview
     const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
     if (cameraTrack) setLocalStream(new MediaStream([...audioTracks, cameraTrack]));
 
@@ -323,29 +330,42 @@ export function useWebRTC(roomId) {
   const startScreenShare = useCallback(async (withAudio = false) => {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 30 } },
+        video: { frameRate: { ideal: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: withAudio,
       });
       screenStreamRef.current = screenStream;
 
       const screenVideoTrack = screenStream.getVideoTracks()[0];
-      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
-      if (sender) await sender.replaceTrack(screenVideoTrack);
 
-      // If system audio was captured, replace audio sender too
+      // Tell the encoder this is screen/detail content, not motion-heavy camera footage.
+      // This makes the encoder prioritise sharpness (text, UI) over smoothness.
+      if ('contentHint' in screenVideoTrack) {
+        screenVideoTrack.contentHint = 'detail';
+      }
+
+      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(screenVideoTrack);
+        // Boost bitrate for screen content — sharp UI/text needs more bits than camera
+        try {
+          const params = sender.getParameters();
+          if (params.encodings?.length) {
+            params.encodings[0].maxBitrate = 8_000_000; // 8 Mbps for crisp screen share
+          }
+          await sender.setParameters(params);
+        } catch { /* not critical */ }
+      }
+
       const screenAudioTrack = screenStream.getAudioTracks()[0];
       if (screenAudioTrack) {
         const audioSender = pcRef.current?.getSenders().find(s => s.track?.kind === 'audio');
         if (audioSender) await audioSender.replaceTrack(screenAudioTrack);
       }
 
-      // Show screen in local preview
       const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
       setLocalStream(new MediaStream([...audioTracks, screenVideoTrack]));
 
-      // Handle user clicking browser's built-in "Stop sharing" button
       screenVideoTrack.onended = () => stopScreenShare();
-
       setIsScreenSharing(true);
     } catch (err) {
       if (err.name !== 'NotAllowedError') console.error('Screen share error:', err);
