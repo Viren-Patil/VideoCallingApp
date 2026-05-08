@@ -5,12 +5,12 @@ import VideoTile from '../components/VideoTile';
 import CallControls from '../components/CallControls';
 
 const STATE_LABEL = {
-  new: { text: 'Initialising…', color: 'bg-yellow-500' },
-  connecting: { text: 'Connecting…', color: 'bg-yellow-500' },
-  connected: { text: 'Connected', color: 'bg-green-500' },
-  disconnected: { text: 'Reconnecting…', color: 'bg-red-500' },
-  failed: { text: 'Connection failed', color: 'bg-red-500' },
-  closed: { text: 'Disconnected', color: 'bg-gray-500' },
+  new:          { text: 'Initialising…',    color: 'bg-yellow-500' },
+  connecting:   { text: 'Connecting…',      color: 'bg-yellow-500' },
+  connected:    { text: 'Connected',         color: 'bg-green-500'  },
+  disconnected: { text: 'Reconnecting…',    color: 'bg-red-500'    },
+  failed:       { text: 'Connection failed', color: 'bg-red-500'    },
+  closed:       { text: 'Disconnected',      color: 'bg-gray-500'   },
 };
 
 export default function RoomPage() {
@@ -22,8 +22,15 @@ export default function RoomPage() {
     if (!roomId) navigate('/');
   }, [roomId, navigate]);
 
-  const { localStream, remoteStream, connectionState, peerJoined, mediaError, leaveCall } =
-    useWebRTC(roomId);
+  const {
+    localStream, remoteStream, connectionState, peerJoined, mediaError,
+    isAudioMuted, isVideoOff, isScreenSharing,
+    toggleAudio, toggleVideo,
+    cameras, microphones, selectedCameraId, selectedMicId,
+    switchCamera, switchMicrophone,
+    startScreenShare, stopScreenShare,
+    leaveCall,
+  } = useWebRTC(roomId);
 
   if (!roomId) return null;
 
@@ -46,6 +53,7 @@ export default function RoomPage() {
   }
 
   const stateInfo = STATE_LABEL[connectionState] ?? STATE_LABEL.new;
+  const isPulsing = connectionState === 'new' || connectionState === 'connecting';
 
   return (
     <div className="h-screen bg-gray-950 flex flex-col overflow-hidden">
@@ -53,23 +61,16 @@ export default function RoomPage() {
       <div className="flex items-center justify-between px-4 py-2 bg-gray-900/80 backdrop-blur-md border-b border-gray-800 z-10">
         <span className="text-white font-mono text-sm tracking-widest">{roomId}</span>
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${stateInfo.color} ${connectionState === 'connecting' || connectionState === 'new' ? 'animate-pulse' : ''}`} />
+          <span className={`w-2 h-2 rounded-full ${stateInfo.color} ${isPulsing ? 'animate-pulse' : ''}`} />
           <span className="text-gray-400 text-xs">{stateInfo.text}</span>
         </div>
       </div>
 
       {/* Video area */}
       <div className="relative flex-1 overflow-hidden">
-        {/* Remote video — full screen */}
         {remoteStream ? (
-          <VideoTile
-            stream={remoteStream}
-            muted={false}
-            label="Peer"
-            className="w-full h-full"
-          />
+          <VideoTile stream={remoteStream} muted={false} label="Peer" className="w-full h-full" />
         ) : (
-          /* Waiting for peer overlay */
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center space-y-3">
               <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -77,23 +78,31 @@ export default function RoomPage() {
                 {peerJoined ? 'Establishing connection…' : 'Waiting for someone to join…'}
               </p>
               <p className="text-gray-500 text-sm">
-                Share this room code: <span className="text-white font-mono font-bold">{roomId}</span>
+                Share this room code:{' '}
+                <span className="text-white font-mono font-bold">{roomId}</span>
               </p>
             </div>
           </div>
         )}
 
-        {/* Local video — picture-in-picture */}
+        {/* Local PiP */}
         <VideoTile
           stream={localStream}
           muted={true}
-          label="You"
+          label={isScreenSharing ? 'Sharing screen' : 'You'}
           className="absolute bottom-4 right-4 w-44 h-32 rounded-xl ring-2 ring-gray-700 shadow-2xl"
         />
       </div>
 
       {/* Controls */}
-      <CallControls onLeave={leaveCall} />
+      <CallControls
+        isAudioMuted={isAudioMuted}       onToggleAudio={toggleAudio}
+        microphones={microphones}          selectedMicId={selectedMicId}      onSwitchMic={switchMicrophone}
+        isVideoOff={isVideoOff}            onToggleVideo={toggleVideo}
+        cameras={cameras}                  selectedCameraId={selectedCameraId} onSwitchCamera={switchCamera}
+        isScreenSharing={isScreenSharing}  onStartScreenShare={startScreenShare} onStopScreenShare={stopScreenShare}
+        onLeave={leaveCall}
+      />
     </div>
   );
 }
