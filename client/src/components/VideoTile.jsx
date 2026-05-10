@@ -48,9 +48,6 @@ const VideoTile = forwardRef(function VideoTile({ stream, muted = false, label, 
                           flex items-center justify-center text-3xl select-none">
             👤
           </div>
-          {showPlaceholder && label && (
-            <p className="mt-2 text-gray-500 text-xs">{label} turned off camera</p>
-          )}
         </div>
       )}
 

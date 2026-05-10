@@ -10,6 +10,8 @@ import CallControls from '../components/CallControls';
 import ReactionOverlay from '../components/ReactionOverlay';
 import ChatPanel from '../components/ChatPanel';
 
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
 const STATE_LABEL = {
   new:          { text: 'Initialising…',    dot: 'bg-yellow-400 animate-pulse' },
   connecting:   { text: 'Connecting…',      dot: 'bg-yellow-400 animate-pulse' },
@@ -56,13 +58,80 @@ function CopyLinkButton({ roomId }) {
   );
 }
 
-export default function RoomPage() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const roomId = searchParams.get('room');
-  const localName = sessionStorage.getItem('callspaceName') || '';
+// ── Name gate — shown when joining via a direct link with no name stored ──────
 
-  useEffect(() => { if (!roomId) navigate('/'); }, [roomId, navigate]);
+function NameGate({ roomId, onJoin }) {
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+
+  const handleJoin = () => {
+    const trimmed = name.trim();
+    if (!trimmed) { setError('Please enter your name to continue.'); return; }
+    onJoin(trimmed);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950 bg-dot-grid flex items-center justify-center px-4 relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2
+                      w-[500px] h-[300px] bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
+
+      <div className="w-full max-w-sm relative z-10 space-y-8">
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold text-white tracking-tight">Callspace</h1>
+          <p className="text-gray-500 text-sm">You've been invited to a call</p>
+        </div>
+
+        <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl p-6 space-y-5
+                        border border-white/8 shadow-2xl">
+
+          {/* Room code badge */}
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-gray-500 text-xs">Room</span>
+            <span className="font-mono text-white text-sm tracking-[0.25em] bg-gray-800/80
+                             border border-white/8 px-3 py-1 rounded-lg">
+              {roomId}
+            </span>
+          </div>
+
+          <div className="h-px bg-white/8" />
+
+          {/* Name input */}
+          <div className="space-y-2">
+            <label className="block text-gray-400 text-sm font-medium">Your name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+              placeholder="e.g. Alex"
+              maxLength={30}
+              autoFocus
+              className="w-full px-4 py-3 bg-gray-800/80 border border-white/8
+                         focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 focus:outline-none
+                         rounded-xl text-white placeholder-gray-600 text-sm
+                         transition-all duration-150"
+            />
+            {error && <p className="text-red-400 text-xs">{error}</p>}
+          </div>
+
+          <button
+            onClick={handleJoin}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 active:scale-[0.98]
+                       text-white font-semibold rounded-xl transition-all duration-150
+                       shadow-lg shadow-blue-900/40"
+          >
+            Join call
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Call room — all hooks live here, only mounted after name is confirmed ─────
+
+function CallRoom({ roomId, localName }) {
+  const navigate = useNavigate();
 
   const {
     localStream, remoteStream, connectionState, peerJoined, mediaError,
@@ -118,8 +187,6 @@ export default function RoomPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [toggleAudio, toggleVideo, isScreenSharing, startScreenShare, stopScreenShare]);
 
-  if (!roomId) return null;
-
   if (mediaError) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
@@ -151,14 +218,12 @@ export default function RoomPage() {
           <CopyLinkButton roomId={roomId} />
         </div>
 
-        {/* Centre: call timer */}
         {callTimer && (
           <span className="absolute left-1/2 -translate-x-1/2 text-gray-300 text-sm font-mono tabular-nums">
             {callTimer}
           </span>
         )}
 
-        {/* Right: signal bars + connection indicator */}
         <div className="flex items-center gap-1.5">
           <SignalBars quality={connectionQuality} />
           <span className={`w-1.5 h-1.5 rounded-full ${stateInfo.dot}`} />
@@ -291,4 +356,33 @@ export default function RoomPage() {
       )}
     </div>
   );
+}
+
+// ── RoomPage — gates on name, then mounts CallRoom ───────────────────────────
+
+export default function RoomPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const roomId = searchParams.get('room');
+
+  const [localName, setLocalName] = useState(sessionStorage.getItem('callspaceName') || '');
+  const [nameConfirmed, setNameConfirmed] = useState(!!sessionStorage.getItem('callspaceName'));
+
+  useEffect(() => { if (!roomId) navigate('/'); }, [roomId, navigate]);
+  if (!roomId) return null;
+
+  if (!nameConfirmed) {
+    return (
+      <NameGate
+        roomId={roomId}
+        onJoin={(name) => {
+          sessionStorage.setItem('callspaceName', name);
+          setLocalName(name);
+          setNameConfirmed(true);
+        }}
+      />
+    );
+  }
+
+  return <CallRoom roomId={roomId} localName={localName} />;
 }

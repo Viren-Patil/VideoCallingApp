@@ -25,6 +25,12 @@ html, body, #root {
   filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
 }
 
+/* ── Chat scrollbar ──────────────────────────────────────────────────────── */
+.chat-messages::-webkit-scrollbar        { width: 3px; }
+.chat-messages::-webkit-scrollbar-track  { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb  { background: #1f2937; border-radius: 999px; }
+.chat-messages::-webkit-scrollbar-thumb:hover { background: #374151; }
+
 /* ── Subtle dot-grid background for home page ────────────────────────────── */
 .bg-dot-grid {
   background-image:
