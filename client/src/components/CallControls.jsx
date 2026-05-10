@@ -83,6 +83,42 @@ const PiPIcon = () => (
   </svg>
 );
 
+const EyeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 21 21 19.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
+  </svg>
+);
+
+const BlurIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M6 13c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm-3 5.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm0-4c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm3-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm12 9.5c.28 0 .5-.22.5-.5s-.22-.5-.5-.5-.5.22-.5.5.22.5.5.5zM12 3c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 18c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zM3 11.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zM15 5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm3 5.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm-3 8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zM9 5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zM9 19c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm9-9c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm3 5.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zM12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm-9 3.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5z"/>
+  </svg>
+);
+
+const VolumeHighIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+  </svg>
+);
+
+const VolumeLowIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/>
+  </svg>
+);
+
+const VolumeMuteIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+  </svg>
+);
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function useClickOutside(ref, onClose) {
@@ -226,11 +262,59 @@ function ReactionButton({ onReact }) {
   );
 }
 
+// ── VolumeButton ─────────────────────────────────────────────────────────────
+
+function VolumeButton({ volume, onVolumeChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useClickOutside(ref, () => setOpen(false));
+
+  const VIcon = volume === 0 ? VolumeMuteIcon : volume < 0.5 ? VolumeLowIcon : VolumeHighIcon;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Volume"
+        className="w-11 h-11 flex items-center justify-center rounded-full
+                   bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
+      >
+        <VIcon />
+      </button>
+
+      {open && (
+        <div className="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 z-50
+                        bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl
+                        p-4 w-44 backdrop-blur-xl">
+          <p className="text-gray-500 text-[10px] uppercase tracking-widest text-center pb-3">Volume</p>
+          <div className="flex flex-col items-center gap-2.5">
+            <span className="text-white text-sm font-mono tabular-nums">{Math.round(volume * 100)}%</span>
+            <input
+              type="range"
+              min="0" max="1" step="0.05"
+              value={volume}
+              onChange={e => onVolumeChange(parseFloat(e.target.value))}
+              className="w-32 accent-blue-500 cursor-pointer"
+            />
+            <div className="flex justify-between w-32 text-gray-600 text-[10px]">
+              <span>0%</span>
+              <span>100%</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── OverflowMenuButton (mobile-only) ─────────────────────────────────────────
 
 function OverflowMenuButton({
   isScreenSharing, onStartScreenShare, onStopScreenShare,
   onReact, chatUnread, onToggleChat, onTogglePiP, canScreenShare,
+  showSelfView, onToggleSelfView,
+  isBackgroundBlur, onToggleBlur,
+  remoteVolume, onVolumeChange,
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -300,6 +384,43 @@ function OverflowMenuButton({
               <PiPIcon />
               <span className="text-sm font-medium">Picture in Picture</span>
             </button>
+
+            <button
+              onClick={() => handle(onToggleSelfView)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-white/8 transition-colors"
+            >
+              {showSelfView ? <EyeIcon /> : <EyeOffIcon />}
+              <span className="text-sm font-medium">{showSelfView ? 'Hide self-view' : 'Show self-view'}</span>
+            </button>
+
+            <button
+              onClick={() => handle(onToggleBlur)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors
+                          ${isBackgroundBlur ? 'bg-blue-600/20 text-blue-400' : 'text-gray-300 hover:bg-white/8'}`}
+            >
+              <BlurIcon />
+              <span className="text-sm font-medium">Background blur</span>
+              {isBackgroundBlur && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />}
+            </button>
+          </div>
+
+          {/* Volume in overflow */}
+          <div className="my-2.5 h-px bg-white/8" />
+          <div className="px-1">
+            <p className="text-gray-500 text-[10px] uppercase tracking-widest pb-2 px-2">Volume</p>
+            <div className="flex items-center gap-2 px-3 pb-1">
+              <VolumeLowIcon />
+              <input
+                type="range"
+                min="0" max="1" step="0.05"
+                value={remoteVolume}
+                onChange={e => onVolumeChange(parseFloat(e.target.value))}
+                className="flex-1 accent-blue-500 cursor-pointer"
+              />
+              <span className="text-gray-400 text-xs tabular-nums w-8 text-right">
+                {Math.round(remoteVolume * 100)}%
+              </span>
+            </div>
           </div>
 
           <div className="my-2.5 h-px bg-white/8" />
@@ -333,8 +454,11 @@ export default function CallControls({
   isAudioMuted, onToggleAudio, microphones, selectedMicId, onSwitchMic,
   isVideoOff,   onToggleVideo,  cameras,     selectedCameraId, onSwitchCamera,
   isScreenSharing, onStartScreenShare, onStopScreenShare,
+  isBackgroundBlur, onToggleBlur,
   onReact,
   chatUnread, onToggleChat,
+  remoteVolume, onVolumeChange,
+  showSelfView, onToggleSelfView,
   onTogglePiP,
   onLeave,
 }) {
@@ -356,6 +480,12 @@ export default function CallControls({
           chatUnread={chatUnread}
           onToggleChat={onToggleChat}
           onTogglePiP={onTogglePiP}
+          showSelfView={showSelfView}
+          onToggleSelfView={onToggleSelfView}
+          isBackgroundBlur={isBackgroundBlur}
+          onToggleBlur={onToggleBlur}
+          remoteVolume={remoteVolume}
+          onVolumeChange={onVolumeChange}
         />
 
         <MediaButton
@@ -414,12 +544,24 @@ export default function CallControls({
           />
         )}
 
+        <button
+          onClick={onToggleBlur}
+          title={isBackgroundBlur ? 'Disable background blur' : 'Enable background blur'}
+          className={`w-11 h-11 flex items-center justify-center rounded-full
+                      transition-all duration-150 shadow-md select-none
+                      ${isBackgroundBlur
+                        ? 'bg-blue-600 hover:bg-blue-500 text-white ring-2 ring-blue-400/40'
+                        : 'bg-white/10 hover:bg-white/20 text-white'}`}
+        >
+          <BlurIcon />
+        </button>
+
         <ReactionButton onReact={onReact} />
 
         <div className="relative">
           <button
             onClick={onToggleChat}
-            title="Chat"
+            title="Chat (C)"
             className="w-11 h-11 flex items-center justify-center rounded-full
                        bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
           >
@@ -432,6 +574,20 @@ export default function CallControls({
             </span>
           )}
         </div>
+
+        <VolumeButton volume={remoteVolume} onVolumeChange={onVolumeChange} />
+
+        <button
+          onClick={onToggleSelfView}
+          title={showSelfView ? 'Hide self-view' : 'Show self-view'}
+          className={`w-11 h-11 flex items-center justify-center rounded-full
+                      transition-all duration-150 shadow-md select-none
+                      ${!showSelfView
+                        ? 'bg-white/10 hover:bg-white/20 text-gray-400'
+                        : 'bg-white/10 hover:bg-white/20 text-white'}`}
+        >
+          {showSelfView ? <EyeIcon /> : <EyeOffIcon />}
+        </button>
 
         <button
           onClick={onTogglePiP}

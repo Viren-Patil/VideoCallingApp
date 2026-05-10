@@ -24,7 +24,7 @@ const ICE_SERVERS = {
   ],
 };
 
-export function useWebRTC(roomId, localName = '') {
+export function useWebRTC(roomId, localName = '', initialCameraId = '', initialMicId = '') {
   // ── Streams & connection ──────────────────────────────────────────────────
   const [localStream, setLocalStream] = useState(null);       // camera normally; screen when sharing
   const [localCameraStream, setLocalCameraStream] = useState(null); // always the camera
@@ -35,6 +35,9 @@ export function useWebRTC(roomId, localName = '') {
   const [mediaError, setMediaError] = useState(null);
   const [remotePeerName, setRemotePeerName] = useState('');
   const [connectionQuality, setConnectionQuality] = useState(null);
+  const [connectionStats, setConnectionStats] = useState(null);
+  const [isLowBandwidth, setIsLowBandwidth] = useState(false);
+  const [isBackgroundBlur, setIsBackgroundBlur] = useState(false);
 
   // ── Media control state ───────────────────────────────────────────────────
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -67,6 +70,12 @@ export function useWebRTC(roomId, localName = '') {
   const selectedCameraIdRef = useRef('');
   const selectedMicIdRef = useRef('');
   const qualityIntervalRef = useRef(null);
+  const prevQualityRef = useRef(null);
+  const prevBytesSentRef = useRef(0);
+  const prevBytesRecvRef = useRef(0);
+  const isBackgroundBlurRef = useRef(false);
+  const initCameraIdRef = useRef(initialCameraId);
+  const initMicIdRef = useRef(initialMicId);
   const navigate = useNavigate();
 
   // Keep refs in sync with state setters
@@ -105,28 +114,82 @@ export function useWebRTC(roomId, localName = '') {
           } catch { /* not critical */ }
         }
 
-        // Connection quality polling
+        // Connection quality + stats polling
         qualityIntervalRef.current = setInterval(async () => {
           const stats = await pc.getStats();
           let rtt = null;
-          let packetsLost = 0;
-          let packetsReceived = 0;
+          let packetsLost = 0, packetsReceived = 0;
+          let bytesSent = 0, bytesReceived = 0;
+          let frameWidth = 0, frameHeight = 0;
           stats.forEach(report => {
             if (report.type === 'candidate-pair' && report.state === 'succeeded' &&
                 report.currentRoundTripTime != null && rtt === null) {
               rtt = report.currentRoundTripTime * 1000;
             }
             if (report.type === 'inbound-rtp' && report.kind === 'video') {
-              packetsLost = report.packetsLost ?? 0;
+              packetsLost     = report.packetsLost     ?? 0;
               packetsReceived = report.packetsReceived ?? 0;
+              bytesReceived   = report.bytesReceived   ?? 0;
+              frameWidth      = report.frameWidth      ?? 0;
+              frameHeight     = report.frameHeight     ?? 0;
+            }
+            if (report.type === 'outbound-rtp' && report.kind === 'video') {
+              bytesSent = report.bytesSent ?? 0;
             }
           });
           if (rtt === null) return;
-          const total = packetsLost + packetsReceived;
+
+          const total    = packetsLost + packetsReceived;
           const lossRate = total > 0 ? packetsLost / total : 0;
-          if (rtt < 150 && lossRate < 0.01) setConnectionQuality('good');
-          else if (rtt < 300 && lossRate < 0.05) setConnectionQuality('fair');
-          else setConnectionQuality('poor');
+          const bitrateSent = Math.round((bytesSent    - prevBytesSentRef.current) * 8 / 3 / 1000);
+          const bitrateRecv = Math.round((bytesReceived - prevBytesRecvRef.current) * 8 / 3 / 1000);
+          prevBytesSentRef.current = bytesSent;
+          prevBytesRecvRef.current = bytesReceived;
+
+          let quality;
+          if      (rtt < 150 && lossRate < 0.01) quality = 'good';
+          else if (rtt < 300 && lossRate < 0.05) quality = 'fair';
+          else                                   quality = 'poor';
+
+          setConnectionQuality(quality);
+          setConnectionStats({
+            rtt:         Math.round(rtt),
+            lossRate:    Math.round(lossRate * 100),
+            bitrateSent: Math.max(0, bitrateSent),
+            bitrateRecv: Math.max(0, bitrateRecv),
+            width:       frameWidth,
+            height:      frameHeight,
+          });
+
+          // Low-bandwidth mode: scale down when poor, restore when recovered
+          if (quality === 'poor' && prevQualityRef.current !== 'poor') {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) {
+              try {
+                const params = sender.getParameters();
+                if (params.encodings?.length) {
+                  params.encodings[0].scaleResolutionDownBy = 4;
+                  params.encodings[0].maxBitrate = 500_000;
+                }
+                await sender.setParameters(params);
+              } catch { /* not critical */ }
+            }
+            setIsLowBandwidth(true);
+          } else if (quality !== 'poor' && prevQualityRef.current === 'poor') {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) {
+              try {
+                const params = sender.getParameters();
+                if (params.encodings?.length) {
+                  params.encodings[0].scaleResolutionDownBy = 1.0;
+                  params.encodings[0].maxBitrate = 4_000_000;
+                }
+                await sender.setParameters(params);
+              } catch { /* not critical */ }
+            }
+            setIsLowBandwidth(false);
+          }
+          prevQualityRef.current = quality;
         }, 3000);
       } else {
         clearInterval(qualityIntervalRef.current);
@@ -172,8 +235,14 @@ export function useWebRTC(roomId, localName = '') {
     const init = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-          audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true },
+          video: {
+            ...(initCameraIdRef.current ? { deviceId: { exact: initCameraIdRef.current } } : {}),
+            width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 },
+          },
+          audio: {
+            ...(initMicIdRef.current ? { deviceId: { exact: initMicIdRef.current } } : {}),
+            noiseSuppression: true, echoCancellation: true, autoGainControl: true,
+          },
         });
         if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
 
@@ -302,6 +371,11 @@ export function useWebRTC(roomId, localName = '') {
       setIsRemoteAudioMuted(false);
       setRemotePeerName('');
       setConnectionQuality(null);
+      setConnectionStats(null);
+      setIsLowBandwidth(false);
+      prevQualityRef.current = null;
+      prevBytesSentRef.current = 0;
+      prevBytesRecvRef.current = 0;
       clearInterval(qualityIntervalRef.current);
       pcRef.current?.close();
       // Null out instead of immediately recreating — if we create a PC here
@@ -422,6 +496,26 @@ export function useWebRTC(roomId, localName = '') {
     }
   }, []);
 
+  // ── Background blur ───────────────────────────────────────────────────────
+
+  const toggleBackgroundBlur = useCallback(async () => {
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (!track) return false;
+    const next = !isBackgroundBlurRef.current;
+    try {
+      await track.applyConstraints({ backgroundBlur: next });
+    } catch {
+      try {
+        await track.applyConstraints({ advanced: [{ backgroundBlur: next }] });
+      } catch {
+        return false;
+      }
+    }
+    isBackgroundBlurRef.current = next;
+    setIsBackgroundBlur(next);
+    return true;
+  }, []);
+
   // ── Screen sharing ────────────────────────────────────────────────────────
 
   const stopScreenShare = useCallback(async () => {
@@ -522,10 +616,11 @@ export function useWebRTC(roomId, localName = '') {
     // Streams & state
     localStream, localCameraStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
     // Names & quality
-    remotePeerName, connectionQuality,
+    remotePeerName, connectionQuality, connectionStats, isLowBandwidth,
     // Media controls
     isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
-    toggleAudio, toggleVideo,
+    isBackgroundBlur,
+    toggleAudio, toggleVideo, toggleBackgroundBlur,
     // Device management
     cameras, microphones, selectedCameraId, selectedMicId,
     switchCamera, switchMicrophone,

@@ -11,7 +11,7 @@ function MicOffBadge() {
   );
 }
 
-const VideoTile = forwardRef(function VideoTile({ stream, muted = false, label, className = '', showPlaceholder = false, objectFit = 'cover', showMuteIndicator = false, mirror = false }, ref) {
+const VideoTile = forwardRef(function VideoTile({ stream, muted = false, label, className = '', showPlaceholder = false, objectFit = 'cover', showMuteIndicator = false, mirror = false, volume = 1 }, ref) {
   const videoRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
@@ -27,6 +27,10 @@ const VideoTile = forwardRef(function VideoTile({ stream, muted = false, label, 
     videoRef.current.srcObject = stream ?? null;
     videoRef.current.muted = muted;
   }, [stream, muted]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.volume = volume;
+  }, [volume]);
 
   const noVideo = !stream || showPlaceholder;
 

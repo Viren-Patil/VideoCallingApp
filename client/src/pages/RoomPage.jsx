@@ -10,6 +10,7 @@ import DraggablePiP from '../components/DraggablePiP';
 import CallControls from '../components/CallControls';
 import ReactionOverlay from '../components/ReactionOverlay';
 import ChatPanel from '../components/ChatPanel';
+import DeviceCheck from '../components/DeviceCheck';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -22,19 +23,73 @@ const STATE_LABEL = {
   closed:       { text: 'Disconnected',      dot: 'bg-gray-500'                 },
 };
 
-function SignalBars({ quality }) {
+function StatsButton({ quality, connectionStats }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
   if (!quality) return null;
+
   const configs = {
     good: ['bg-green-400',  'bg-green-400',  'bg-green-400'],
     fair: ['bg-yellow-400', 'bg-yellow-400', 'bg-gray-600'],
     poor: ['bg-red-400',    'bg-gray-600',   'bg-gray-600'],
   };
   const bars = configs[quality] ?? ['bg-gray-600', 'bg-gray-600', 'bg-gray-600'];
+
   return (
-    <div className="flex items-end gap-0.5 h-3.5 mr-1">
-      <div className={`w-1 h-1.5 rounded-[1px] ${bars[0]}`} />
-      <div className={`w-1 h-2.5 rounded-[1px] ${bars[1]}`} />
-      <div className={`w-1 h-3.5 rounded-[1px] ${bars[2]}`} />
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Connection stats"
+        className="flex items-end gap-0.5 h-3.5 mr-1 hover:opacity-70 transition-opacity"
+      >
+        <div className={`w-1 h-1.5 rounded-[1px] ${bars[0]}`} />
+        <div className={`w-1 h-2.5 rounded-[1px] ${bars[1]}`} />
+        <div className={`w-1 h-3.5 rounded-[1px] ${bars[2]}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-[calc(100%+10px)] right-0 z-30
+                        bg-gray-900/95 border border-white/10 rounded-xl shadow-2xl
+                        p-4 w-52 backdrop-blur-xl">
+          <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-3">Connection Stats</p>
+          {connectionStats ? (
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex justify-between">
+                <span className="text-gray-400">RTT</span>
+                <span className="text-white">{connectionStats.rtt} ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Packet loss</span>
+                <span className="text-white">{connectionStats.lossRate}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Sending</span>
+                <span className="text-white">{connectionStats.bitrateSent} kbps</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Receiving</span>
+                <span className="text-white">{connectionStats.bitrateRecv} kbps</span>
+              </div>
+              {connectionStats.width > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Resolution</span>
+                  <span className="text-white">{connectionStats.width}×{connectionStats.height}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-600 text-xs">Waiting for data…</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -131,27 +186,31 @@ function NameGate({ roomId, onJoin }) {
 
 // ── Call room — all hooks live here, only mounted after name is confirmed ─────
 
-function CallRoom({ roomId, localName }) {
+function CallRoom({ roomId, localName, initialCameraId = '', initialMicId = '' }) {
   const navigate = useNavigate();
 
   const {
     localStream, localCameraStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
-    remotePeerName, connectionQuality,
+    remotePeerName, connectionQuality, connectionStats, isLowBandwidth,
     isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
-    toggleAudio, toggleVideo,
+    isBackgroundBlur,
+    toggleAudio, toggleVideo, toggleBackgroundBlur,
     cameras, microphones, selectedCameraId, selectedMicId,
     switchCamera, switchMicrophone,
     startScreenShare, stopScreenShare,
     leaveCall,
-  } = useWebRTC(roomId, localName);
+  } = useWebRTC(roomId, localName, initialCameraId, initialMicId);
 
   const { activeReactions, sendReaction } = useReactions();
   const callTimer = useCallTimer(connectionState);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [remoteVolume, setRemoteVolume] = useState(1);
+  const [showSelfView, setShowSelfView] = useState(true);
   const remoteVideoRef = useRef(null);
   const prevPeerJoined = useRef(false);
+  const prevIsLowBandwidthRef = useRef(false);
   const lastPeerNameRef = useRef('');
   const toastTimer = useRef(null);
 
@@ -163,6 +222,16 @@ function CallRoom({ roomId, localName }) {
 
   const { playJoin, playLeave, playChatMessage } = useSoundNotifications();
   const { messages, unreadCount, sendMessage, clearUnread } = useChat(localName, chatOpen, playChatMessage);
+
+  // Low-bandwidth toast
+  useEffect(() => {
+    if (isLowBandwidth && !prevIsLowBandwidthRef.current) {
+      showToast('Low bandwidth — video quality reduced');
+    } else if (!isLowBandwidth && prevIsLowBandwidthRef.current) {
+      showToast('Connection recovered');
+    }
+    prevIsLowBandwidthRef.current = isLowBandwidth;
+  }, [isLowBandwidth, showToast]);
 
   // Keep a stable copy of the peer name so the leave toast can show it
   // (remotePeerName is cleared to '' at the same time peerJoined becomes false)
@@ -201,7 +270,12 @@ function CallRoom({ roomId, localName }) {
     }
   }, []);
 
-  // Keyboard shortcuts: M = mute, V = video, S = screen share
+  const handleToggleBlur = useCallback(async () => {
+    const supported = await toggleBackgroundBlur();
+    if (!supported) showToast('Background blur not supported on this browser');
+  }, [toggleBackgroundBlur, showToast]);
+
+  // Keyboard shortcuts: M = mute, V = video, S = screen share, C = chat
   useEffect(() => {
     const handleKey = (e) => {
       const tag = e.target.tagName;
@@ -211,11 +285,13 @@ function CallRoom({ roomId, localName }) {
       else if ((e.key === 's' || e.key === 'S') && typeof navigator.mediaDevices?.getDisplayMedia === 'function') {
         if (isScreenSharing) stopScreenShare();
         else startScreenShare();
+      } else if (e.key === 'c' || e.key === 'C') {
+        toggleChat();
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [toggleAudio, toggleVideo, isScreenSharing, startScreenShare, stopScreenShare]);
+  }, [toggleAudio, toggleVideo, isScreenSharing, startScreenShare, stopScreenShare, toggleChat]);
 
   if (mediaError) {
     return (
@@ -255,7 +331,7 @@ function CallRoom({ roomId, localName }) {
         )}
 
         <div className="flex items-center gap-1.5">
-          <SignalBars quality={connectionQuality} />
+          <StatsButton quality={connectionQuality} connectionStats={connectionStats} />
           <span className={`w-1.5 h-1.5 rounded-full ${stateInfo.dot}`} />
           <span className="hidden sm:block text-gray-500 text-xs">{stateInfo.text}</span>
         </div>
@@ -272,6 +348,7 @@ function CallRoom({ roomId, localName }) {
               ref={remoteVideoRef}
               stream={remoteScreenStream}
               muted={false}
+              volume={remoteVolume}
               objectFit="contain"
               className="w-full h-full"
             />
@@ -289,6 +366,7 @@ function CallRoom({ roomId, localName }) {
               ref={remoteVideoRef}
               stream={remoteStream}
               muted={false}
+              volume={remoteVolume}
               label={remotePeerName || undefined}
               showPlaceholder={isRemoteVideoOff}
               showMuteIndicator={isRemoteAudioMuted}
@@ -370,15 +448,17 @@ function CallRoom({ roomId, localName }) {
       {/* Floating reaction emojis */}
       <ReactionOverlay reactions={activeReactions} />
 
-      {/* Local camera PiP — always shows the camera (not the screen) */}
-      <DraggablePiP
-        stream={isScreenSharing ? localCameraStream : localStream}
-        label={localName || 'You'}
-        showPlaceholder={isVideoOff}
-        showMuteIndicator={isAudioMuted}
-        muted={true}
-        mirror={true}
-      />
+      {/* Local camera PiP — hidden when self-view is toggled off */}
+      {showSelfView && (
+        <DraggablePiP
+          stream={isScreenSharing ? localCameraStream : localStream}
+          label={localName || 'You'}
+          showPlaceholder={isVideoOff}
+          showMuteIndicator={isAudioMuted}
+          muted={true}
+          mirror={true}
+        />
+      )}
 
       {/* Remote camera PiP — floats when either side is screen sharing */}
       {(isScreenSharing || remoteScreenStream) && remoteStream && (
@@ -401,9 +481,12 @@ function CallRoom({ roomId, localName }) {
         isVideoOff={isVideoOff}             onToggleVideo={toggleVideo}
         cameras={cameras}                   selectedCameraId={selectedCameraId}  onSwitchCamera={switchCamera}
         isScreenSharing={isScreenSharing}   onStartScreenShare={startScreenShare} onStopScreenShare={stopScreenShare}
+        isBackgroundBlur={isBackgroundBlur} onToggleBlur={handleToggleBlur}
         onReact={sendReaction}
         chatUnread={chatOpen ? 0 : unreadCount}
         onToggleChat={toggleChat}
+        remoteVolume={remoteVolume}         onVolumeChange={setRemoteVolume}
+        showSelfView={showSelfView}         onToggleSelfView={() => setShowSelfView(v => !v)}
         onTogglePiP={togglePiP}
         onLeave={() => setConfirmLeave(true)}
       />
@@ -445,6 +528,8 @@ export default function RoomPage() {
 
   const [localName, setLocalName] = useState(sessionStorage.getItem('callspaceName') || '');
   const [nameConfirmed, setNameConfirmed] = useState(!!sessionStorage.getItem('callspaceName'));
+  const [deviceCheckDone, setDeviceCheckDone] = useState(false);
+  const [deviceConfig, setDeviceConfig] = useState({ cameraId: '', micId: '' });
 
   useEffect(() => { if (!roomId) navigate('/'); }, [roomId, navigate]);
   if (!roomId) return null;
@@ -462,5 +547,25 @@ export default function RoomPage() {
     );
   }
 
-  return <CallRoom roomId={roomId} localName={localName} />;
+  if (!deviceCheckDone) {
+    return (
+      <DeviceCheck
+        roomId={roomId}
+        localName={localName}
+        onJoin={(config) => {
+          setDeviceConfig(config);
+          setDeviceCheckDone(true);
+        }}
+      />
+    );
+  }
+
+  return (
+    <CallRoom
+      roomId={roomId}
+      localName={localName}
+      initialCameraId={deviceConfig.cameraId}
+      initialMicId={deviceConfig.micId}
+    />
+  );
 }
