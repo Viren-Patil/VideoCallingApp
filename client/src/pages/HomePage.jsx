@@ -56,7 +56,8 @@ function NewRoomCard({ onBack, onEnter }) {
 
 export default function HomePage() {
   const [joinCode, setJoinCode] = useState('');
-  const [error, setError] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [codeError, setCodeError] = useState('');
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [name, setName] = useState(() => sessionStorage.getItem('callspaceName') || '');
   const navigate = useNavigate();
@@ -65,11 +66,23 @@ export default function HomePage() {
     const val = e.target.value;
     setName(val);
     sessionStorage.setItem('callspaceName', val);
+    if (val.trim()) setNameError('');
+  };
+
+  const validateName = () => {
+    if (!name.trim()) { setNameError('Please enter your name to continue.'); return false; }
+    return true;
+  };
+
+  const startNewCall = () => {
+    if (!validateName()) return;
+    setCreatingRoom(true);
   };
 
   const joinRoom = () => {
+    if (!validateName()) return;
     const code = joinCode.trim().toUpperCase();
-    if (code.length !== 6) { setError('Room code must be 6 characters.'); return; }
+    if (code.length !== 6) { setCodeError('Room code must be 6 characters.'); return; }
     navigate(`/room?room=${code}`);
   };
 
@@ -94,20 +107,24 @@ export default function HomePage() {
         <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl p-6 space-y-5
                         border border-white/8 shadow-2xl">
 
-          {/* Name input — shown above both flows */}
+          {/* Name input */}
           <div>
-            <label className="block text-gray-500 text-xs mb-1.5">Your name (optional)</label>
+            <label className="block text-gray-400 text-sm font-medium mb-1.5">Your name</label>
             <input
               type="text"
               value={name}
               onChange={handleNameChange}
+              onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
               placeholder="e.g. Alex"
               maxLength={30}
-              className="w-full px-4 py-2.5 bg-gray-800/80 border border-white/8
-                         focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 focus:outline-none
-                         rounded-xl text-white placeholder-gray-600 text-sm
-                         transition-all duration-150"
+              className={`w-full px-4 py-2.5 bg-gray-800/80 border rounded-xl text-white
+                         placeholder-gray-600 text-sm transition-all duration-150
+                         focus:outline-none focus:ring-1
+                         ${nameError
+                           ? 'border-red-500 focus:border-red-500 focus:ring-red-500/40'
+                           : 'border-white/8 focus:border-blue-500 focus:ring-blue-500/40'}`}
             />
+            {nameError && <p className="text-red-400 text-xs mt-1.5">{nameError}</p>}
           </div>
 
           {creatingRoom ? (
@@ -118,7 +135,7 @@ export default function HomePage() {
           ) : (
             <>
               <button
-                onClick={() => setCreatingRoom(true)}
+                onClick={startNewCall}
                 className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 active:scale-[0.98]
                            text-white font-semibold rounded-xl transition-all duration-150 shadow-lg shadow-blue-900/40"
               >
@@ -135,7 +152,7 @@ export default function HomePage() {
                 <input
                   type="text"
                   value={joinCode}
-                  onChange={(e) => { setJoinCode(e.target.value); setError(''); }}
+                  onChange={(e) => { setJoinCode(e.target.value); setCodeError(''); }}
                   onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                   placeholder="XXXXXX"
                   maxLength={6}
@@ -145,8 +162,8 @@ export default function HomePage() {
                              uppercase tracking-[0.3em] font-mono text-center text-lg
                              transition-all duration-150"
                 />
-                {error && (
-                  <p className="text-red-400 text-xs text-center">{error}</p>
+                {codeError && (
+                  <p className="text-red-400 text-xs text-center">{codeError}</p>
                 )}
                 <button
                   onClick={joinRoom}
