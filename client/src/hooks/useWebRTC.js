@@ -37,7 +37,6 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
   const [connectionQuality, setConnectionQuality] = useState(null);
   const [connectionStats, setConnectionStats] = useState(null);
   const [isLowBandwidth, setIsLowBandwidth] = useState(false);
-  const [isBackgroundBlur, setIsBackgroundBlur] = useState(false);
 
   // ── Media control state ───────────────────────────────────────────────────
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -73,12 +72,6 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
   const prevQualityRef = useRef(null);
   const prevBytesSentRef = useRef(0);
   const prevBytesRecvRef = useRef(0);
-  const isBackgroundBlurRef = useRef(false);
-  const blurCanvasRef    = useRef(null);   // offscreen canvas producing the blurred video
-  const blurTempRef      = useRef(null);   // temp canvas for person compositing
-  const blurVideoElRef   = useRef(null);   // hidden <video> feeding camera frames to MediaPipe
-  const blurAnimRef      = useRef(null);   // { running: bool } — controls the frame loop
-  const blurSegRef       = useRef(null);   // SelfieSegmentation instance
   const initCameraIdRef = useRef(initialCameraId);
   const initMicIdRef = useRef(initialMicId);
   const navigate = useNavigate();
@@ -401,11 +394,6 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
       screenStreamRef.current?.getTracks().forEach(t => t.stop());
       audioContextRef.current?.close();
       clearInterval(qualityIntervalRef.current);
-      if (blurAnimRef.current) { blurAnimRef.current.running = false; blurAnimRef.current = null; }
-      blurSegRef.current?.close?.();
-      blurSegRef.current = null;
-      blurVideoElRef.current?.pause?.();
-      blurVideoElRef.current = null;
       localStreamRef.current = null;
       cameraTrackRef.current = null;
       screenStreamRef.current = null;
@@ -505,180 +493,6 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
       console.error('switchMicrophone error:', err);
     }
   }, []);
-
-  // ── Background blur ───────────────────────────────────────────────────────
-
-  const MEDIAPIPE_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747';
-
-  const stopBlurCanvas = useCallback(() => {
-    if (blurAnimRef.current) { blurAnimRef.current.running = false; blurAnimRef.current = null; }
-    blurSegRef.current?.close?.();
-    blurSegRef.current = null;
-    blurVideoElRef.current?.pause?.();
-    blurVideoElRef.current = null;
-    blurCanvasRef.current = null;
-    blurTempRef.current = null;
-  }, []);
-
-  const toggleBackgroundBlur = useCallback(async () => {
-    const cameraTrack = cameraTrackRef.current;
-    if (!cameraTrack) return false;
-    const next = !isBackgroundBlurRef.current;
-
-    // ── Turning blur OFF ──────────────────────────────────────────────────────
-    if (!next) {
-      stopBlurCanvas();
-      // Try to clear native blur too (no-op if it was never set)
-      try { await cameraTrack.applyConstraints({ backgroundBlur: false }); } catch { /* ignore */ }
-      // Restore camera track to the video sender
-      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
-      if (sender) await sender.replaceTrack(cameraTrack);
-      // Restore local stream previews (only if not screen sharing)
-      if (!screenStreamRef.current) {
-        const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
-        const s = new MediaStream([...audioTracks, cameraTrack]);
-        setLocalStream(new MediaStream(s.getTracks()));
-        setLocalCameraStream(new MediaStream(s.getTracks()));
-      }
-      isBackgroundBlurRef.current = false;
-      setIsBackgroundBlur(false);
-      return true;
-    }
-
-    // ── Turning blur ON ───────────────────────────────────────────────────────
-
-    // 1. Try native backgroundBlur (ChromeOS / Android Chrome, some hardware)
-    const caps = cameraTrack.getCapabilities?.();
-    const nativeOk = Array.isArray(caps?.backgroundBlur)
-      ? caps.backgroundBlur.includes(true)
-      : caps?.backgroundBlur === true;
-    if (nativeOk) {
-      try {
-        await cameraTrack.applyConstraints({ backgroundBlur: true });
-        isBackgroundBlurRef.current = true;
-        setIsBackgroundBlur(true);
-        return true;
-      } catch { /* fall through to canvas */ }
-    }
-
-    // 2. Canvas fallback — MediaPipe Selfie Segmentation loaded from CDN
-    try {
-      // Lazy-load the MediaPipe script once
-      if (!window.SelfieSegmentation) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = `${MEDIAPIPE_CDN}/selfie_segmentation.js`;
-          script.crossOrigin = 'anonymous';
-          script.onload = resolve;
-          script.onerror = () => reject(new Error('MediaPipe CDN load failed'));
-          document.head.appendChild(script);
-        });
-      }
-
-      const { width = 640, height = 480 } = cameraTrack.getSettings();
-
-      // Half-resolution canvas fed to MediaPipe — far less work for the model
-      const PW = Math.max(160, Math.round(width / 2));
-      const PH = Math.max(90,  Math.round(height / 2));
-      const small = document.createElement('canvas');
-      small.width = PW; small.height = PH;
-      const smallCtx = small.getContext('2d');
-
-      // Hidden video element — reads live camera frames
-      const video = document.createElement('video');
-      video.srcObject = new MediaStream([cameraTrack]);
-      video.muted = true;
-      video.width = width;
-      video.height = height;
-      await new Promise(r => { video.onloadedmetadata = r; });
-      video.play();
-      blurVideoElRef.current = video;
-
-      // Full-resolution output canvas → becomes the sent video track
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      blurCanvasRef.current = canvas;
-      const ctx = canvas.getContext('2d');
-
-      // Temp canvas — composites the sharp person using the mask
-      const tmp = document.createElement('canvas');
-      tmp.width = width;
-      tmp.height = height;
-      blurTempRef.current = tmp;
-      const tmpCtx = tmp.getContext('2d');
-
-      // eslint-disable-next-line no-undef
-      const seg = new SelfieSegmentation({ locateFile: f => `${MEDIAPIPE_CDN}/${f}` });
-      // Model 0 = general/fast, model 1 = landscape (slower)
-      seg.setOptions({ modelSelection: 0 });
-
-      // Cache the latest mask — onResults fires at MediaPipe's own rate, not rAF rate
-      let latestMask = null;
-      seg.onResults(({ segmentationMask }) => { latestMask = segmentationMask; });
-      blurSegRef.current = seg;
-      await seg.initialize();
-
-      // rAF loop runs at 60fps and composites using the most-recent mask.
-      // MediaPipe is called concurrently (non-blocking) at whatever rate it can sustain
-      // (typically 15-20fps on a mid-range laptop) — video stays smooth regardless.
-      const state = { running: true, processing: false };
-      blurAnimRef.current = state;
-      const sendFrame = () => {
-        if (!state.running) return;
-        if (video.readyState >= 2) {
-          if (latestMask) {
-            // 1. Extract sharp person into tmp canvas via mask
-            tmpCtx.clearRect(0, 0, width, height);
-            tmpCtx.drawImage(latestMask, 0, 0, width, height); // upscale mask to full res
-            tmpCtx.globalCompositeOperation = 'source-in';
-            tmpCtx.drawImage(video, 0, 0, width, height);      // full-res camera pixels
-            tmpCtx.globalCompositeOperation = 'source-over';
-
-            // 2. Blurred background → sharp person on top
-            ctx.clearRect(0, 0, width, height);
-            ctx.filter = 'blur(16px)';
-            ctx.drawImage(video, 0, 0, width, height);
-            ctx.filter = 'none';
-            ctx.drawImage(tmp, 0, 0);
-          } else {
-            // No mask yet (model still loading) — pass through unblurred
-            ctx.clearRect(0, 0, width, height);
-            ctx.drawImage(video, 0, 0, width, height);
-          }
-
-          // Feed a downscaled frame to MediaPipe — only when it's free
-          if (!state.processing) {
-            state.processing = true;
-            smallCtx.drawImage(video, 0, 0, PW, PH);
-            seg.send({ image: small }).finally(() => { state.processing = false; });
-          }
-        }
-        requestAnimationFrame(sendFrame);
-      };
-      sendFrame();
-
-      // Swap the video sender's track to the canvas stream
-      const canvasTrack = canvas.captureStream(30).getVideoTracks()[0];
-      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
-      if (sender) await sender.replaceTrack(canvasTrack);
-
-      // Update local previews with the blurred canvas track
-      const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
-      const blurredStream = new MediaStream([...audioTracks, canvasTrack]);
-      setLocalStream(new MediaStream(blurredStream.getTracks()));
-      setLocalCameraStream(new MediaStream(blurredStream.getTracks()));
-
-      isBackgroundBlurRef.current = true;
-      setIsBackgroundBlur(true);
-      return true;
-    } catch (err) {
-      console.error('Background blur error:', err);
-      stopBlurCanvas();
-      return false;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopBlurCanvas]);
 
   // ── Screen sharing ────────────────────────────────────────────────────────
 
@@ -783,8 +597,7 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
     remotePeerName, connectionQuality, connectionStats, isLowBandwidth,
     // Media controls
     isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
-    isBackgroundBlur,
-    toggleAudio, toggleVideo, toggleBackgroundBlur,
+    toggleAudio, toggleVideo,
     // Device management
     cameras, microphones, selectedCameraId, selectedMicId,
     switchCamera, switchMicrophone,

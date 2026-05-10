@@ -193,8 +193,7 @@ function CallRoom({ roomId, localName, initialCameraId = '', initialMicId = '' }
     localStream, localCameraStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
     remotePeerName, connectionQuality, connectionStats, isLowBandwidth,
     isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
-    isBackgroundBlur,
-    toggleAudio, toggleVideo, toggleBackgroundBlur,
+    toggleAudio, toggleVideo,
     cameras, microphones, selectedCameraId, selectedMicId,
     switchCamera, switchMicrophone,
     startScreenShare, stopScreenShare,
@@ -269,11 +268,6 @@ function CallRoom({ roomId, localName, initialCameraId = '', initialMicId = '' }
       console.error('PiP error:', err);
     }
   }, []);
-
-  const handleToggleBlur = useCallback(async () => {
-    const supported = await toggleBackgroundBlur();
-    if (!supported) showToast('Background blur not supported on this browser');
-  }, [toggleBackgroundBlur, showToast]);
 
   // Keyboard shortcuts: M = mute, V = video, S = screen share, C = chat
   useEffect(() => {
@@ -481,7 +475,6 @@ function CallRoom({ roomId, localName, initialCameraId = '', initialMicId = '' }
         isVideoOff={isVideoOff}             onToggleVideo={toggleVideo}
         cameras={cameras}                   selectedCameraId={selectedCameraId}  onSwitchCamera={switchCamera}
         isScreenSharing={isScreenSharing}   onStartScreenShare={startScreenShare} onStopScreenShare={stopScreenShare}
-        isBackgroundBlur={isBackgroundBlur} onToggleBlur={handleToggleBlur}
         onReact={sendReaction}
         chatUnread={chatOpen ? 0 : unreadCount}
         onToggleChat={toggleChat}

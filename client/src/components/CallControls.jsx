@@ -95,11 +95,6 @@ const EyeOffIcon = () => (
   </svg>
 );
 
-const BlurIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M6 13c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm-3 5.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm0-4c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm3-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm12 9.5c.28 0 .5-.22.5-.5s-.22-.5-.5-.5-.5.22-.5.5.22.5.5.5zM12 3c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 18c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zM3 11.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zM15 5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm3 5.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm-3 8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zM9 5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zM9 19c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm9-9c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm3 5.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zM12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm-9 3.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5z"/>
-  </svg>
-);
 
 const VolumeHighIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -313,7 +308,6 @@ function OverflowMenuButton({
   isScreenSharing, onStartScreenShare, onStopScreenShare,
   onReact, chatUnread, onToggleChat, onTogglePiP, canScreenShare,
   showSelfView, onToggleSelfView,
-  isBackgroundBlur, onToggleBlur,
   remoteVolume, onVolumeChange,
 }) {
   const [open, setOpen] = useState(false);
@@ -393,15 +387,6 @@ function OverflowMenuButton({
               <span className="text-sm font-medium">{showSelfView ? 'Hide self-view' : 'Show self-view'}</span>
             </button>
 
-            <button
-              onClick={() => handle(onToggleBlur)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors
-                          ${isBackgroundBlur ? 'bg-blue-600/20 text-blue-400' : 'text-gray-300 hover:bg-white/8'}`}
-            >
-              <BlurIcon />
-              <span className="text-sm font-medium">Background blur</span>
-              {isBackgroundBlur && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />}
-            </button>
           </div>
 
           {/* Volume in overflow */}
@@ -454,7 +439,6 @@ export default function CallControls({
   isAudioMuted, onToggleAudio, microphones, selectedMicId, onSwitchMic,
   isVideoOff,   onToggleVideo,  cameras,     selectedCameraId, onSwitchCamera,
   isScreenSharing, onStartScreenShare, onStopScreenShare,
-  isBackgroundBlur, onToggleBlur,
   onReact,
   chatUnread, onToggleChat,
   remoteVolume, onVolumeChange,
@@ -482,8 +466,6 @@ export default function CallControls({
           onTogglePiP={onTogglePiP}
           showSelfView={showSelfView}
           onToggleSelfView={onToggleSelfView}
-          isBackgroundBlur={isBackgroundBlur}
-          onToggleBlur={onToggleBlur}
           remoteVolume={remoteVolume}
           onVolumeChange={onVolumeChange}
         />
@@ -543,18 +525,6 @@ export default function CallControls({
             onStop={onStopScreenShare}
           />
         )}
-
-        <button
-          onClick={onToggleBlur}
-          title={isBackgroundBlur ? 'Disable background blur' : 'Enable background blur'}
-          className={`w-11 h-11 flex items-center justify-center rounded-full
-                      transition-all duration-150 shadow-md select-none
-                      ${isBackgroundBlur
-                        ? 'bg-blue-600 hover:bg-blue-500 text-white ring-2 ring-blue-400/40'
-                        : 'bg-white/10 hover:bg-white/20 text-white'}`}
-        >
-          <BlurIcon />
-        </button>
 
         <ReactionButton onReact={onReact} />
 
