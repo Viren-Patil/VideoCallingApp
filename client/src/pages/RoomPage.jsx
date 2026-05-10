@@ -135,7 +135,7 @@ function CallRoom({ roomId, localName }) {
   const navigate = useNavigate();
 
   const {
-    localStream, remoteStream, connectionState, peerJoined, mediaError,
+    localStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
     remotePeerName, connectionQuality,
     isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
     toggleAudio, toggleVideo,
@@ -246,7 +246,33 @@ function CallRoom({ roomId, localName }) {
 
         {/* Main video */}
         <div className="relative flex-1 overflow-hidden bg-gray-950">
-          {remoteStream ? (
+          {remoteScreenStream ? (
+            // ── Remote is screen sharing: screen = main, their camera = overlay ──
+            <>
+              <VideoTile
+                ref={remoteVideoRef}
+                stream={remoteScreenStream}
+                muted={false}
+                objectFit="contain"
+                className="w-full h-full"
+              />
+              {remoteStream && (
+                <div className="absolute top-3 right-3 w-44 h-32 rounded-xl overflow-hidden
+                                ring-2 ring-gray-700/60 shadow-2xl z-10">
+                  <VideoTile
+                    stream={remoteStream}
+                    muted={false}
+                    label={remotePeerName || undefined}
+                    showPlaceholder={isRemoteVideoOff}
+                    showMuteIndicator={isRemoteAudioMuted}
+                    objectFit="cover"
+                    className="w-full h-full"
+                  />
+                </div>
+              )}
+            </>
+          ) : remoteStream ? (
+            // ── Normal call: remote camera fills the main area ──
             <VideoTile
               ref={remoteVideoRef}
               stream={remoteStream}
@@ -258,6 +284,7 @@ function CallRoom({ roomId, localName }) {
               className="w-full h-full"
             />
           ) : (
+            // ── Waiting for peer ──
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center space-y-5">
                 <div className="relative mx-auto w-16 h-16">

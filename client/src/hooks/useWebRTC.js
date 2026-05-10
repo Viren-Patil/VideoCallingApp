@@ -28,6 +28,7 @@ export function useWebRTC(roomId, localName = '') {
   // ── Streams & connection ──────────────────────────────────────────────────
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [remoteScreenStream, setRemoteScreenStream] = useState(null);
   const [connectionState, setConnectionState] = useState('new');
   const [peerJoined, setPeerJoined] = useState(false);
   const [mediaError, setMediaError] = useState(null);
@@ -52,6 +53,8 @@ export function useWebRTC(roomId, localName = '') {
   const localStreamRef = useRef(null);   // camera + mic tracks (source of truth)
   const cameraTrackRef = useRef(null);   // current camera track — preserved across screen share
   const screenStreamRef = useRef(null);
+  const screenTransceiverRef = useRef(null);    // the extra sendonly transceiver added for screen share
+  const remoteScreenTrackIdRef = useRef(null);  // track.id the remote peer signaled as their screen share
   const audioContextRef = useRef(null);  // AudioContext for mic+screen audio mixing
   const remoteStreamRef = useRef(null);
   const politeRef = useRef(false);
@@ -146,6 +149,12 @@ export function useWebRTC(roomId, localName = '') {
     };
 
     pc.ontrack = ({ track }) => {
+      // If the remote peer signaled this track ID as their screen share, route it separately
+      if (track.kind === 'video' && remoteScreenTrackIdRef.current === track.id) {
+        setRemoteScreenStream(new MediaStream([track]));
+        track.onended = () => setRemoteScreenStream(null);
+        return;
+      }
       if (!remoteStreamRef.current) remoteStreamRef.current = new MediaStream();
       remoteStreamRef.current.addTrack(track);
       setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
@@ -271,10 +280,21 @@ export function useWebRTC(roomId, localName = '') {
       if (active) setIsRemoteAudioMuted(isOff);
     });
 
+    socket.on('screen-share-started', ({ trackId }) => {
+      if (active) remoteScreenTrackIdRef.current = trackId;
+    });
+
+    socket.on('screen-share-stopped', () => {
+      remoteScreenTrackIdRef.current = null;
+      if (active) setRemoteScreenStream(null);
+    });
+
     socket.on('peer-left', () => {
       if (!active) return;
       setPeerJoined(false);
       setRemoteStream(null);
+      setRemoteScreenStream(null);
+      remoteScreenTrackIdRef.current = null;
       setConnectionState('new');
       setIsRemoteVideoOff(false);
       setIsRemoteAudioMuted(false);
@@ -315,6 +335,8 @@ export function useWebRTC(roomId, localName = '') {
       socket.off('ice-candidate');
       socket.off('video-toggle');
       socket.off('audio-toggle');
+      socket.off('screen-share-started');
+      socket.off('screen-share-stopped');
       socket.off('peer-left');
       socket.disconnect();
     };
@@ -413,21 +435,17 @@ export function useWebRTC(roomId, localName = '') {
       }
     }
 
-    const cameraTrack = cameraTrackRef.current;
-    const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
-
-    if (sender && cameraTrack) {
-      await sender.replaceTrack(cameraTrack);
-      try {
-        const params = sender.getParameters();
-        if (params.encodings?.length) {
-          params.encodings[0].maxBitrate = 4_000_000;
-        }
-        await sender.setParameters(params);
-      } catch { /* not critical */ }
+    // Null out the screen transceiver's track — camera was never replaced so no restore needed
+    if (screenTransceiverRef.current) {
+      try { await screenTransceiverRef.current.sender.replaceTrack(null); } catch { /* ignore */ }
+      screenTransceiverRef.current = null;
     }
 
+    socket.emit('screen-share-stopped');
+
+    // Restore local PiP preview to camera
     const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
+    const cameraTrack = cameraTrackRef.current;
     if (cameraTrack) setLocalStream(new MediaStream([...audioTracks, cameraTrack]));
 
     setIsScreenSharing(false);
@@ -437,25 +455,22 @@ export function useWebRTC(roomId, localName = '') {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: { ideal: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: true, // shows native dialog with audio toggle — user chooses
+        audio: true,
       });
       screenStreamRef.current = screenStream;
 
       const screenVideoTrack = screenStream.getVideoTracks()[0];
-      if ('contentHint' in screenVideoTrack) {
-        screenVideoTrack.contentHint = 'detail';
-      }
+      if ('contentHint' in screenVideoTrack) screenVideoTrack.contentHint = 'detail';
 
-      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
-      if (sender) {
-        await sender.replaceTrack(screenVideoTrack);
-        try {
-          const params = sender.getParameters();
-          if (params.encodings?.length) {
-            params.encodings[0].maxBitrate = 8_000_000;
-          }
-          await sender.setParameters(params);
-        } catch { /* not critical */ }
+      // Add screen as a NEW sendonly transceiver — camera transceiver is untouched,
+      // so the remote peer receives both camera and screen simultaneously.
+      const pc = pcRef.current;
+      if (pc) {
+        const transceiver = pc.addTransceiver(screenVideoTrack, { direction: 'sendonly' });
+        screenTransceiverRef.current = transceiver;
+        // Signal the remote peer which track ID is the screen share
+        // (socket event travels faster than the SDP/ICE round-trip so it arrives first)
+        socket.emit('screen-share-started', { trackId: screenVideoTrack.id });
       }
 
       // If the user chose to share audio, mix it with the mic so both are heard
@@ -471,12 +486,12 @@ export function useWebRTC(roomId, localName = '') {
           micSource.connect(destination);
           screenSource.connect(destination);
           const mixedTrack = destination.stream.getAudioTracks()[0];
-          const audioSender = pcRef.current?.getSenders().find(s => s.track?.kind === 'audio');
+          const audioSender = pc?.getSenders().find(s => s.track?.kind === 'audio');
           if (audioSender) await audioSender.replaceTrack(mixedTrack);
         }
       }
-      // If no screen audio was selected, the mic sender is left untouched
 
+      // Update local PiP preview to show the screen (so sharer sees "Sharing" label)
       const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
       setLocalStream(new MediaStream([...audioTracks, screenVideoTrack]));
 
@@ -501,7 +516,7 @@ export function useWebRTC(roomId, localName = '') {
 
   return {
     // Streams & state
-    localStream, remoteStream, connectionState, peerJoined, mediaError,
+    localStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
     // Names & quality
     remotePeerName, connectionQuality,
     // Media controls
