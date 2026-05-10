@@ -577,7 +577,14 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
 
       const { width = 640, height = 480 } = cameraTrack.getSettings();
 
-      // Hidden video element → feeds raw camera frames to MediaPipe
+      // Half-resolution canvas fed to MediaPipe — far less work for the model
+      const PW = Math.max(160, Math.round(width / 2));
+      const PH = Math.max(90,  Math.round(height / 2));
+      const small = document.createElement('canvas');
+      small.width = PW; small.height = PH;
+      const smallCtx = small.getContext('2d');
+
+      // Hidden video element — reads live camera frames
       const video = document.createElement('video');
       video.srcObject = new MediaStream([cameraTrack]);
       video.muted = true;
@@ -587,50 +594,66 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
       video.play();
       blurVideoElRef.current = video;
 
-      // Output canvas — this becomes the new video track sent to the peer
+      // Full-resolution output canvas → becomes the sent video track
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       blurCanvasRef.current = canvas;
       const ctx = canvas.getContext('2d');
 
-      // Temp canvas — used to extract the sharp person using the segmentation mask
+      // Temp canvas — composites the sharp person using the mask
       const tmp = document.createElement('canvas');
       tmp.width = width;
       tmp.height = height;
       blurTempRef.current = tmp;
       const tmpCtx = tmp.getContext('2d');
 
-      // Initialise MediaPipe
       // eslint-disable-next-line no-undef
       const seg = new SelfieSegmentation({ locateFile: f => `${MEDIAPIPE_CDN}/${f}` });
-      seg.setOptions({ modelSelection: 1 });
-      seg.onResults(({ image, segmentationMask }) => {
-        // Step 1: draw sharp person onto temp canvas using mask as clip
-        tmpCtx.clearRect(0, 0, width, height);
-        tmpCtx.drawImage(segmentationMask, 0, 0, width, height);  // mask (white = person)
-        tmpCtx.globalCompositeOperation = 'source-in';
-        tmpCtx.drawImage(image, 0, 0, width, height);             // clip to person pixels
-        tmpCtx.globalCompositeOperation = 'source-over';
+      // Model 0 = general/fast, model 1 = landscape (slower)
+      seg.setOptions({ modelSelection: 0 });
 
-        // Step 2: draw blurred full frame as background
-        ctx.clearRect(0, 0, width, height);
-        ctx.filter = 'blur(18px)';
-        ctx.drawImage(image, 0, 0, width, height);
-        ctx.filter = 'none';
-
-        // Step 3: paste sharp person on top
-        ctx.drawImage(tmp, 0, 0);
-      });
+      // Cache the latest mask — onResults fires at MediaPipe's own rate, not rAF rate
+      let latestMask = null;
+      seg.onResults(({ segmentationMask }) => { latestMask = segmentationMask; });
       blurSegRef.current = seg;
       await seg.initialize();
 
-      // Frame loop — stops when blurAnimRef.current.running = false
-      const state = { running: true };
+      // rAF loop runs at 60fps and composites using the most-recent mask.
+      // MediaPipe is called concurrently (non-blocking) at whatever rate it can sustain
+      // (typically 15-20fps on a mid-range laptop) — video stays smooth regardless.
+      const state = { running: true, processing: false };
       blurAnimRef.current = state;
-      const sendFrame = async () => {
+      const sendFrame = () => {
         if (!state.running) return;
-        if (video.readyState >= 2) await seg.send({ image: video });
+        if (video.readyState >= 2) {
+          if (latestMask) {
+            // 1. Extract sharp person into tmp canvas via mask
+            tmpCtx.clearRect(0, 0, width, height);
+            tmpCtx.drawImage(latestMask, 0, 0, width, height); // upscale mask to full res
+            tmpCtx.globalCompositeOperation = 'source-in';
+            tmpCtx.drawImage(video, 0, 0, width, height);      // full-res camera pixels
+            tmpCtx.globalCompositeOperation = 'source-over';
+
+            // 2. Blurred background → sharp person on top
+            ctx.clearRect(0, 0, width, height);
+            ctx.filter = 'blur(16px)';
+            ctx.drawImage(video, 0, 0, width, height);
+            ctx.filter = 'none';
+            ctx.drawImage(tmp, 0, 0);
+          } else {
+            // No mask yet (model still loading) — pass through unblurred
+            ctx.clearRect(0, 0, width, height);
+            ctx.drawImage(video, 0, 0, width, height);
+          }
+
+          // Feed a downscaled frame to MediaPipe — only when it's free
+          if (!state.processing) {
+            state.processing = true;
+            smallCtx.drawImage(video, 0, 0, PW, PH);
+            seg.send({ image: small }).finally(() => { state.processing = false; });
+          }
+        }
         requestAnimationFrame(sendFrame);
       };
       sendFrame();
