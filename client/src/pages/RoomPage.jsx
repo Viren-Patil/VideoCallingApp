@@ -247,30 +247,14 @@ function CallRoom({ roomId, localName }) {
         {/* Main video */}
         <div className="relative flex-1 overflow-hidden bg-gray-950">
           {remoteScreenStream ? (
-            // ── Remote is screen sharing: screen = main, their camera = overlay ──
-            <>
-              <VideoTile
-                ref={remoteVideoRef}
-                stream={remoteScreenStream}
-                muted={false}
-                objectFit="contain"
-                className="w-full h-full"
-              />
-              {remoteStream && (
-                <div className="absolute top-3 right-3 w-44 h-32 rounded-xl overflow-hidden
-                                ring-2 ring-gray-700/60 shadow-2xl z-10">
-                  <VideoTile
-                    stream={remoteStream}
-                    muted={false}
-                    label={remotePeerName || undefined}
-                    showPlaceholder={isRemoteVideoOff}
-                    showMuteIndicator={isRemoteAudioMuted}
-                    objectFit="cover"
-                    className="w-full h-full"
-                  />
-                </div>
-              )}
-            </>
+            // ── Remote is screen sharing: screen fills main area ──
+            <VideoTile
+              ref={remoteVideoRef}
+              stream={remoteScreenStream}
+              muted={false}
+              objectFit="contain"
+              className="w-full h-full"
+            />
           ) : remoteStream ? (
             // ── Normal call: remote camera fills the main area ──
             <VideoTile
@@ -351,7 +335,23 @@ function CallRoom({ roomId, localName }) {
         label={isScreenSharing ? 'Sharing' : (localName || 'You')}
         showPlaceholder={isVideoOff}
         showMuteIndicator={isAudioMuted}
+        muted={true}
+        mirror={true}
       />
+
+      {/* Draggable remote camera PiP — only shown while remote is screen sharing */}
+      {remoteScreenStream && remoteStream && (
+        <DraggablePiP
+          stream={remoteStream}
+          label={remotePeerName || undefined}
+          showPlaceholder={isRemoteVideoOff}
+          showMuteIndicator={isRemoteAudioMuted}
+          muted={false}
+          mirror={false}
+          initialX={16}
+          initialY={60}
+        />
+      )}
 
       {/* Control bar */}
       <CallControls
