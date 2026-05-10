@@ -212,9 +212,16 @@ export function useWebRTC(roomId, localName = '') {
       if (peerName) setRemotePeerName(peerName);
     });
     socket.on('peer-joined', ({ name } = {}) => {
-      if (active) {
-        setPeerJoined(true);
-        if (name) setRemotePeerName(name);
+      if (!active) return;
+      setPeerJoined(true);
+      if (name) setRemotePeerName(name);
+      // The waiting peer is always polite — it defers to whoever is (re)joining
+      politeRef.current = true;
+      // If the PC was torn down when the previous peer left, rebuild it now
+      // rather than at peer-left time (avoids sending offers into an empty room)
+      if (!pcRef.current) {
+        const pc = makePc();
+        localStreamRef.current?.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
       }
     });
     socket.on('room-full', () => navigate('/'));
@@ -275,8 +282,13 @@ export function useWebRTC(roomId, localName = '') {
       setConnectionQuality(null);
       clearInterval(qualityIntervalRef.current);
       pcRef.current?.close();
-      const pc = makePc();
-      localStreamRef.current?.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
+      // Null out instead of immediately recreating — if we create a PC here
+      // and add tracks, onnegotiationneeded fires and sends an offer into an
+      // empty room, leaving the PC in have-local-offer state. When the peer
+      // rejoins and also sends an offer, both peers detect a collision. If both
+      // happen to be "impolite" they both drop each other's offer → deadlock.
+      // Instead we rebuild in peer-joined once we know a new peer is arriving.
+      pcRef.current = null;
     });
 
     init();
