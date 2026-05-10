@@ -25,6 +25,17 @@ html, body, #root {
   filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
 }
 
+/* ── Toast notification ──────────────────────────────────────────────────── */
+@keyframes toast-pop {
+  0%   { opacity: 0; transform: translateY(-6px); }
+  12%  { opacity: 1; transform: translateY(0);    }
+  80%  { opacity: 1; transform: translateY(0);    }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+.toast-pop {
+  animation: toast-pop 3s ease-out forwards;
+}
+
 /* ── Chat scrollbar ──────────────────────────────────────────────────────── */
 .chat-messages::-webkit-scrollbar        { width: 3px; }
 .chat-messages::-webkit-scrollbar-track  { background: transparent; }

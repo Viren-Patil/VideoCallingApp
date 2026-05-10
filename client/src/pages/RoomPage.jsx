@@ -149,18 +149,38 @@ function CallRoom({ roomId, localName }) {
   const callTimer = useCallTimer(connectionState);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [toast, setToast] = useState(null);
   const remoteVideoRef = useRef(null);
   const prevPeerJoined = useRef(false);
+  const lastPeerNameRef = useRef('');
+  const toastTimer = useRef(null);
+
+  const showToast = useCallback((message) => {
+    clearTimeout(toastTimer.current);
+    setToast({ message, id: Date.now() });
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
+  }, []);
 
   const { playJoin, playLeave, playChatMessage } = useSoundNotifications();
   const { messages, unreadCount, sendMessage, clearUnread } = useChat(localName, chatOpen, playChatMessage);
 
-  // Play join/leave sounds when peer connection changes
+  // Keep a stable copy of the peer name so the leave toast can show it
+  // (remotePeerName is cleared to '' at the same time peerJoined becomes false)
   useEffect(() => {
-    if (peerJoined && !prevPeerJoined.current) playJoin();
-    else if (!peerJoined && prevPeerJoined.current) playLeave();
+    if (remotePeerName) lastPeerNameRef.current = remotePeerName;
+  }, [remotePeerName]);
+
+  // Sound + toast on peer join / leave
+  useEffect(() => {
+    if (peerJoined && !prevPeerJoined.current) {
+      playJoin();
+      showToast(`${remotePeerName || 'Someone'} joined the call`);
+    } else if (!peerJoined && prevPeerJoined.current) {
+      playLeave();
+      showToast(`${lastPeerNameRef.current || 'Someone'} left the call`);
+    }
     prevPeerJoined.current = peerJoined;
-  }, [peerJoined, playJoin, playLeave]);
+  }, [peerJoined, remotePeerName, playJoin, playLeave, showToast]);
 
   const toggleChat = useCallback(() => {
     setChatOpen(v => {
@@ -333,6 +353,19 @@ function CallRoom({ roomId, localName }) {
                     ${chatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setChatOpen(false)}
       />
+
+      {/* Toast notifications */}
+      {toast && (
+        <div
+          key={toast.id}
+          className="toast-pop fixed top-14 left-1/2 -translate-x-1/2 z-[65]
+                     px-4 py-2 rounded-full text-sm text-white
+                     bg-gray-900/90 backdrop-blur-xl border border-white/10 shadow-xl
+                     pointer-events-none whitespace-nowrap"
+        >
+          {toast.message}
+        </div>
+      )}
 
       {/* Floating reaction emojis */}
       <ReactionOverlay reactions={activeReactions} />
