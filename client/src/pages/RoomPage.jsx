@@ -4,6 +4,7 @@ import { useWebRTC } from '../hooks/useWebRTC';
 import { useReactions } from '../hooks/useReactions';
 import { useCallTimer } from '../hooks/useCallTimer';
 import { useChat } from '../hooks/useChat';
+import { useSoundNotifications } from '../hooks/useSoundNotifications';
 import VideoTile from '../components/VideoTile';
 import DraggablePiP from '../components/DraggablePiP';
 import CallControls from '../components/CallControls';
@@ -149,8 +150,17 @@ function CallRoom({ roomId, localName }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const remoteVideoRef = useRef(null);
+  const prevPeerJoined = useRef(false);
 
-  const { messages, unreadCount, sendMessage, clearUnread } = useChat(localName, chatOpen);
+  const { playJoin, playLeave, playChatMessage } = useSoundNotifications();
+  const { messages, unreadCount, sendMessage, clearUnread } = useChat(localName, chatOpen, playChatMessage);
+
+  // Play join/leave sounds when peer connection changes
+  useEffect(() => {
+    if (peerJoined && !prevPeerJoined.current) playJoin();
+    else if (!peerJoined && prevPeerJoined.current) playLeave();
+    prevPeerJoined.current = peerJoined;
+  }, [peerJoined, playJoin, playLeave]);
 
   const toggleChat = useCallback(() => {
     setChatOpen(v => {

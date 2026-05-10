@@ -63,6 +63,14 @@ const ChevronUpIcon = () => (
   </svg>
 );
 
+const MoreIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="5" cy="12" r="2"/>
+    <circle cx="12" cy="12" r="2"/>
+    <circle cx="19" cy="12" r="2"/>
+  </svg>
+);
+
 const ChatIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
     <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
@@ -218,6 +226,107 @@ function ReactionButton({ onReact }) {
   );
 }
 
+// ── OverflowMenuButton (mobile-only) ─────────────────────────────────────────
+
+function OverflowMenuButton({
+  isScreenSharing, onStartScreenShare, onStopScreenShare,
+  onReact, chatUnread, onToggleChat, onTogglePiP, canScreenShare,
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useClickOutside(ref, () => setOpen(false));
+
+  const handle = (fn) => { fn(); setOpen(false); };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="More options"
+        className={`w-12 h-12 flex items-center justify-center rounded-full
+                    transition-all duration-150 shadow-md select-none
+                    ${open ? 'bg-white/20 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+      >
+        <MoreIcon />
+      </button>
+
+      {/* Unread dot on ⋯ button when menu is closed */}
+      {!open && chatUnread > 0 && (
+        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center
+                         rounded-full bg-blue-500 text-white text-[9px] font-bold pointer-events-none">
+          {chatUnread > 9 ? '9+' : chatUnread}
+        </span>
+      )}
+
+      {open && (
+        <div className="absolute bottom-[calc(100%+12px)] left-0 z-50
+                        bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl
+                        p-3 w-60 backdrop-blur-xl">
+
+          {/* Action rows */}
+          <div className="space-y-0.5">
+            {canScreenShare && (
+              <button
+                onClick={() => handle(isScreenSharing ? onStopScreenShare : onStartScreenShare)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors
+                            ${isScreenSharing
+                              ? 'bg-blue-600/20 text-blue-400'
+                              : 'text-gray-300 hover:bg-white/8'}`}
+              >
+                {isScreenSharing ? <ScreenSharingActiveIcon /> : <ScreenShareIcon />}
+                <span className="text-sm font-medium">{isScreenSharing ? 'Stop Sharing' : 'Screen Share'}</span>
+                {isScreenSharing && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />}
+              </button>
+            )}
+
+            <button
+              onClick={() => handle(onToggleChat)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-white/8 transition-colors"
+            >
+              <ChatIcon />
+              <span className="text-sm font-medium">Chat</span>
+              {chatUnread > 0 && (
+                <span className="ml-auto flex items-center justify-center w-5 h-5 shrink-0
+                                 rounded-full bg-blue-500 text-white text-[9px] font-bold">
+                  {chatUnread > 9 ? '9+' : chatUnread}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => handle(onTogglePiP)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:bg-white/8 transition-colors"
+            >
+              <PiPIcon />
+              <span className="text-sm font-medium">Picture in Picture</span>
+            </button>
+          </div>
+
+          <div className="my-2.5 h-px bg-white/8" />
+
+          {/* Reactions inline */}
+          <div>
+            <p className="text-gray-500 text-[10px] uppercase tracking-widest px-1 pb-2">React</p>
+            <div className="grid grid-cols-5 gap-0.5">
+              {REACTION_ENTRIES.map(([key, emoji]) => (
+                <button
+                  key={key}
+                  onClick={() => { onReact(key); setOpen(false); }}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl text-xl
+                             hover:bg-white/10 active:scale-90 transition-all duration-100"
+                  title={key}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CallControls ──────────────────────────────────────────────────────────────
 
 export default function CallControls({
@@ -236,8 +345,67 @@ export default function CallControls({
       className="bg-black/60 backdrop-blur-xl border-t border-white/5"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      {/* ── Secondary row (mobile only) ── */}
-      <div className="flex sm:hidden items-center justify-center gap-4 pt-2.5 px-4">
+      {/* ── Mobile row: [⋯] [Mic] [Camera] | [End] ── */}
+      <div className="flex sm:hidden items-center justify-center gap-3 px-4 py-3">
+        <OverflowMenuButton
+          canScreenShare={canScreenShare}
+          isScreenSharing={isScreenSharing}
+          onStartScreenShare={onStartScreenShare}
+          onStopScreenShare={onStopScreenShare}
+          onReact={onReact}
+          chatUnread={chatUnread}
+          onToggleChat={onToggleChat}
+          onTogglePiP={onTogglePiP}
+        />
+
+        <MediaButton
+          icon={<MicIcon />}    activeIcon={<MicOffIcon />}
+          isActive={isAudioMuted}
+          onToggle={onToggleAudio}
+          devices={microphones} selectedId={selectedMicId}    onSelectDevice={onSwitchMic}
+          tooltip="Microphone"
+        />
+
+        <MediaButton
+          icon={<CameraIcon />} activeIcon={<CameraOffIcon />}
+          isActive={isVideoOff}
+          onToggle={onToggleVideo}
+          devices={cameras}     selectedId={selectedCameraId} onSelectDevice={onSwitchCamera}
+          tooltip="Camera"
+        />
+
+        <div className="w-px h-7 bg-white/10 mx-1" />
+
+        <button
+          onClick={onLeave}
+          title="Leave call"
+          className="w-12 h-12 flex items-center justify-center rounded-full
+                     bg-red-600 hover:bg-red-500 active:scale-95
+                     text-white transition-all duration-150 shadow-md"
+        >
+          <EndCallIcon />
+        </button>
+      </div>
+
+      {/* ── Desktop row (unchanged) ── */}
+      <div className="hidden sm:flex items-center justify-center gap-3 px-6 py-3">
+
+        <MediaButton
+          icon={<MicIcon />}    activeIcon={<MicOffIcon />}
+          isActive={isAudioMuted}
+          onToggle={onToggleAudio}
+          devices={microphones} selectedId={selectedMicId}    onSelectDevice={onSwitchMic}
+          tooltip="Microphone"
+        />
+
+        <MediaButton
+          icon={<CameraIcon />} activeIcon={<CameraOffIcon />}
+          isActive={isVideoOff}
+          onToggle={onToggleVideo}
+          devices={cameras}     selectedId={selectedCameraId} onSelectDevice={onSwitchCamera}
+          tooltip="Camera"
+        />
+
         {canScreenShare && (
           <ScreenShareButton
             isScreenSharing={isScreenSharing}
@@ -273,72 +441,13 @@ export default function CallControls({
         >
           <PiPIcon />
         </button>
-      </div>
-
-      {/* ── Primary row ── */}
-      <div className="flex items-center justify-center gap-3 sm:gap-3 px-4 sm:px-6 py-2.5 sm:py-3">
-
-        <MediaButton
-          icon={<MicIcon />}     activeIcon={<MicOffIcon />}
-          isActive={isAudioMuted}
-          onToggle={onToggleAudio}
-          devices={microphones}  selectedId={selectedMicId}    onSelectDevice={onSwitchMic}
-          tooltip="Microphone"
-        />
-
-        <MediaButton
-          icon={<CameraIcon />}  activeIcon={<CameraOffIcon />}
-          isActive={isVideoOff}
-          onToggle={onToggleVideo}
-          devices={cameras}      selectedId={selectedCameraId} onSelectDevice={onSwitchCamera}
-          tooltip="Camera"
-        />
-
-        {/* Desktop-only secondary controls — hidden on mobile (shown in secondary row above) */}
-        <div className="hidden sm:flex items-center gap-3">
-          {canScreenShare && (
-            <ScreenShareButton
-              isScreenSharing={isScreenSharing}
-              onStart={onStartScreenShare}
-              onStop={onStopScreenShare}
-            />
-          )}
-
-          <ReactionButton onReact={onReact} />
-
-          <div className="relative">
-            <button
-              onClick={onToggleChat}
-              title="Chat"
-              className="w-11 h-11 flex items-center justify-center rounded-full
-                         bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
-            >
-              <ChatIcon />
-            </button>
-            {chatUnread > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center
-                               rounded-full bg-blue-500 text-white text-[9px] font-bold pointer-events-none">
-                {chatUnread > 9 ? '9+' : chatUnread}
-              </span>
-            )}
-          </div>
-
-          <button
-            onClick={onTogglePiP}
-            title="Picture in Picture"
-            className="w-11 h-11 flex items-center justify-center rounded-full
-                       bg-white/10 hover:bg-white/20 text-white transition-all duration-150 shadow-md select-none"
-          >
-            <PiPIcon />
-          </button>
-        </div>
 
         <div className="w-px h-7 bg-white/10 mx-1" />
 
         <button
           onClick={onLeave}
           title="Leave call"
-          className="w-12 h-12 sm:w-12 sm:h-11 flex items-center justify-center rounded-full
+          className="w-12 h-11 flex items-center justify-center rounded-full
                      bg-red-600 hover:bg-red-500 active:scale-95
                      text-white transition-all duration-150 shadow-md"
         >

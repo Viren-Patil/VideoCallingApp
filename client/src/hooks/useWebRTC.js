@@ -163,7 +163,7 @@ export function useWebRTC(roomId, localName = '') {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-          audio: true,
+          audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true },
         });
         if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
 
