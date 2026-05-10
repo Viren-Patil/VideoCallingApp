@@ -74,6 +74,11 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
   const prevBytesSentRef = useRef(0);
   const prevBytesRecvRef = useRef(0);
   const isBackgroundBlurRef = useRef(false);
+  const blurCanvasRef    = useRef(null);   // offscreen canvas producing the blurred video
+  const blurTempRef      = useRef(null);   // temp canvas for person compositing
+  const blurVideoElRef   = useRef(null);   // hidden <video> feeding camera frames to MediaPipe
+  const blurAnimRef      = useRef(null);   // { running: bool } — controls the frame loop
+  const blurSegRef       = useRef(null);   // SelfieSegmentation instance
   const initCameraIdRef = useRef(initialCameraId);
   const initMicIdRef = useRef(initialMicId);
   const navigate = useNavigate();
@@ -396,6 +401,11 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
       screenStreamRef.current?.getTracks().forEach(t => t.stop());
       audioContextRef.current?.close();
       clearInterval(qualityIntervalRef.current);
+      if (blurAnimRef.current) { blurAnimRef.current.running = false; blurAnimRef.current = null; }
+      blurSegRef.current?.close?.();
+      blurSegRef.current = null;
+      blurVideoElRef.current?.pause?.();
+      blurVideoElRef.current = null;
       localStreamRef.current = null;
       cameraTrackRef.current = null;
       screenStreamRef.current = null;
@@ -498,23 +508,154 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
 
   // ── Background blur ───────────────────────────────────────────────────────
 
-  const toggleBackgroundBlur = useCallback(async () => {
-    const track = localStreamRef.current?.getVideoTracks()[0];
-    if (!track) return false;
-    const next = !isBackgroundBlurRef.current;
-    try {
-      await track.applyConstraints({ backgroundBlur: next });
-    } catch {
-      try {
-        await track.applyConstraints({ advanced: [{ backgroundBlur: next }] });
-      } catch {
-        return false;
-      }
-    }
-    isBackgroundBlurRef.current = next;
-    setIsBackgroundBlur(next);
-    return true;
+  const MEDIAPIPE_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747';
+
+  const stopBlurCanvas = useCallback(() => {
+    if (blurAnimRef.current) { blurAnimRef.current.running = false; blurAnimRef.current = null; }
+    blurSegRef.current?.close?.();
+    blurSegRef.current = null;
+    blurVideoElRef.current?.pause?.();
+    blurVideoElRef.current = null;
+    blurCanvasRef.current = null;
+    blurTempRef.current = null;
   }, []);
+
+  const toggleBackgroundBlur = useCallback(async () => {
+    const cameraTrack = cameraTrackRef.current;
+    if (!cameraTrack) return false;
+    const next = !isBackgroundBlurRef.current;
+
+    // ── Turning blur OFF ──────────────────────────────────────────────────────
+    if (!next) {
+      stopBlurCanvas();
+      // Try to clear native blur too (no-op if it was never set)
+      try { await cameraTrack.applyConstraints({ backgroundBlur: false }); } catch { /* ignore */ }
+      // Restore camera track to the video sender
+      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) await sender.replaceTrack(cameraTrack);
+      // Restore local stream previews (only if not screen sharing)
+      if (!screenStreamRef.current) {
+        const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
+        const s = new MediaStream([...audioTracks, cameraTrack]);
+        setLocalStream(new MediaStream(s.getTracks()));
+        setLocalCameraStream(new MediaStream(s.getTracks()));
+      }
+      isBackgroundBlurRef.current = false;
+      setIsBackgroundBlur(false);
+      return true;
+    }
+
+    // ── Turning blur ON ───────────────────────────────────────────────────────
+
+    // 1. Try native backgroundBlur (ChromeOS / Android Chrome, some hardware)
+    const caps = cameraTrack.getCapabilities?.();
+    const nativeOk = Array.isArray(caps?.backgroundBlur)
+      ? caps.backgroundBlur.includes(true)
+      : caps?.backgroundBlur === true;
+    if (nativeOk) {
+      try {
+        await cameraTrack.applyConstraints({ backgroundBlur: true });
+        isBackgroundBlurRef.current = true;
+        setIsBackgroundBlur(true);
+        return true;
+      } catch { /* fall through to canvas */ }
+    }
+
+    // 2. Canvas fallback — MediaPipe Selfie Segmentation loaded from CDN
+    try {
+      // Lazy-load the MediaPipe script once
+      if (!window.SelfieSegmentation) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `${MEDIAPIPE_CDN}/selfie_segmentation.js`;
+          script.crossOrigin = 'anonymous';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('MediaPipe CDN load failed'));
+          document.head.appendChild(script);
+        });
+      }
+
+      const { width = 640, height = 480 } = cameraTrack.getSettings();
+
+      // Hidden video element → feeds raw camera frames to MediaPipe
+      const video = document.createElement('video');
+      video.srcObject = new MediaStream([cameraTrack]);
+      video.muted = true;
+      video.width = width;
+      video.height = height;
+      await new Promise(r => { video.onloadedmetadata = r; });
+      video.play();
+      blurVideoElRef.current = video;
+
+      // Output canvas — this becomes the new video track sent to the peer
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      blurCanvasRef.current = canvas;
+      const ctx = canvas.getContext('2d');
+
+      // Temp canvas — used to extract the sharp person using the segmentation mask
+      const tmp = document.createElement('canvas');
+      tmp.width = width;
+      tmp.height = height;
+      blurTempRef.current = tmp;
+      const tmpCtx = tmp.getContext('2d');
+
+      // Initialise MediaPipe
+      // eslint-disable-next-line no-undef
+      const seg = new SelfieSegmentation({ locateFile: f => `${MEDIAPIPE_CDN}/${f}` });
+      seg.setOptions({ modelSelection: 1 });
+      seg.onResults(({ image, segmentationMask }) => {
+        // Step 1: draw sharp person onto temp canvas using mask as clip
+        tmpCtx.clearRect(0, 0, width, height);
+        tmpCtx.drawImage(segmentationMask, 0, 0, width, height);  // mask (white = person)
+        tmpCtx.globalCompositeOperation = 'source-in';
+        tmpCtx.drawImage(image, 0, 0, width, height);             // clip to person pixels
+        tmpCtx.globalCompositeOperation = 'source-over';
+
+        // Step 2: draw blurred full frame as background
+        ctx.clearRect(0, 0, width, height);
+        ctx.filter = 'blur(18px)';
+        ctx.drawImage(image, 0, 0, width, height);
+        ctx.filter = 'none';
+
+        // Step 3: paste sharp person on top
+        ctx.drawImage(tmp, 0, 0);
+      });
+      blurSegRef.current = seg;
+      await seg.initialize();
+
+      // Frame loop — stops when blurAnimRef.current.running = false
+      const state = { running: true };
+      blurAnimRef.current = state;
+      const sendFrame = async () => {
+        if (!state.running) return;
+        if (video.readyState >= 2) await seg.send({ image: video });
+        requestAnimationFrame(sendFrame);
+      };
+      sendFrame();
+
+      // Swap the video sender's track to the canvas stream
+      const canvasTrack = canvas.captureStream(30).getVideoTracks()[0];
+      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) await sender.replaceTrack(canvasTrack);
+
+      // Update local previews with the blurred canvas track
+      const audioTracks = localStreamRef.current?.getAudioTracks() ?? [];
+      const blurredStream = new MediaStream([...audioTracks, canvasTrack]);
+      setLocalStream(new MediaStream(blurredStream.getTracks()));
+      setLocalCameraStream(new MediaStream(blurredStream.getTracks()));
+
+      isBackgroundBlurRef.current = true;
+      setIsBackgroundBlur(true);
+      return true;
+    } catch (err) {
+      console.error('Background blur error:', err);
+      stopBlurCanvas();
+      return false;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopBlurCanvas]);
 
   // ── Screen sharing ────────────────────────────────────────────────────────
 
