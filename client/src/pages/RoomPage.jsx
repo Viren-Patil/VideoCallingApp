@@ -135,7 +135,7 @@ function CallRoom({ roomId, localName }) {
   const navigate = useNavigate();
 
   const {
-    localStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
+    localStream, localCameraStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
     remotePeerName, connectionQuality,
     isAudioMuted, isVideoOff, isRemoteVideoOff, isRemoteAudioMuted, isScreenSharing,
     toggleAudio, toggleVideo,
@@ -247,11 +247,19 @@ function CallRoom({ roomId, localName }) {
         {/* Main video */}
         <div className="relative flex-1 overflow-hidden bg-gray-950">
           {remoteScreenStream ? (
-            // ── Remote is screen sharing: screen fills main area ──
+            // ── Remote is screen sharing: their screen fills main area ──
             <VideoTile
               ref={remoteVideoRef}
               stream={remoteScreenStream}
               muted={false}
+              objectFit="contain"
+              className="w-full h-full"
+            />
+          ) : isScreenSharing ? (
+            // ── I am screen sharing: my screen fills main area ──
+            <VideoTile
+              stream={localStream}
+              muted={true}
               objectFit="contain"
               className="w-full h-full"
             />
@@ -329,18 +337,18 @@ function CallRoom({ roomId, localName }) {
       {/* Floating reaction emojis */}
       <ReactionOverlay reactions={activeReactions} />
 
-      {/* Draggable local PiP */}
+      {/* Local camera PiP — always shows the camera (not the screen) */}
       <DraggablePiP
-        stream={localStream}
-        label={isScreenSharing ? 'Sharing' : (localName || 'You')}
+        stream={isScreenSharing ? localCameraStream : localStream}
+        label={localName || 'You'}
         showPlaceholder={isVideoOff}
         showMuteIndicator={isAudioMuted}
         muted={true}
         mirror={true}
       />
 
-      {/* Draggable remote camera PiP — only shown while remote is screen sharing */}
-      {remoteScreenStream && remoteStream && (
+      {/* Remote camera PiP — floats when either side is screen sharing */}
+      {(isScreenSharing || remoteScreenStream) && remoteStream && (
         <DraggablePiP
           stream={remoteStream}
           label={remotePeerName || undefined}

@@ -26,7 +26,8 @@ const ICE_SERVERS = {
 
 export function useWebRTC(roomId, localName = '') {
   // ── Streams & connection ──────────────────────────────────────────────────
-  const [localStream, setLocalStream] = useState(null);
+  const [localStream, setLocalStream] = useState(null);       // camera normally; screen when sharing
+  const [localCameraStream, setLocalCameraStream] = useState(null); // always the camera
   const [remoteStream, setRemoteStream] = useState(null);
   const [remoteScreenStream, setRemoteScreenStream] = useState(null);
   const [connectionState, setConnectionState] = useState('new');
@@ -186,6 +187,7 @@ export function useWebRTC(roomId, localName = '') {
         if (audioTrack?.getSettings().deviceId) setSelectedMicId(audioTrack.getSettings().deviceId);
 
         setLocalStream(new MediaStream(stream.getTracks()));
+        setLocalCameraStream(new MediaStream(stream.getTracks()));
 
         // Enumerate after getUserMedia so labels are visible
         await enumerateDevices();
@@ -387,6 +389,7 @@ export function useWebRTC(roomId, localName = '') {
       const newLocalStream = new MediaStream([...audioTracks, newTrack]);
       localStreamRef.current = newLocalStream;
       setLocalStream(new MediaStream(newLocalStream.getTracks()));
+      setLocalCameraStream(new MediaStream(newLocalStream.getTracks()));
       setSelectedCameraId(deviceId);
     } catch (err) {
       console.error('switchCamera error:', err);
@@ -412,6 +415,7 @@ export function useWebRTC(roomId, localName = '') {
       const newLocalStream = new MediaStream([...videoTracks, newTrack]);
       localStreamRef.current = newLocalStream;
       setLocalStream(new MediaStream(newLocalStream.getTracks()));
+      setLocalCameraStream(new MediaStream(newLocalStream.getTracks()));
       setSelectedMicId(deviceId);
     } catch (err) {
       console.error('switchMicrophone error:', err);
@@ -516,7 +520,7 @@ export function useWebRTC(roomId, localName = '') {
 
   return {
     // Streams & state
-    localStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
+    localStream, localCameraStream, remoteStream, remoteScreenStream, connectionState, peerJoined, mediaError,
     // Names & quality
     remotePeerName, connectionQuality,
     // Media controls
