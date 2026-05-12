@@ -124,50 +124,69 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
   const [microphones, setMicrophones]           = useState([]);
   const [selectedCameraId, setSelectedCameraId] = useState('');
   const [selectedMicId, setSelectedMicId]       = useState('');
-  const [micLevel, setMicLevel]   = useState(0);
-  const [ready, setReady]         = useState(false);
-  const [error, setError]         = useState(null);
-  const [loading, setLoading]     = useState(true);
+  const [micLevel, setMicLevel]     = useState(0);
+  const [loading, setLoading]       = useState(true);
+  const [hasCameraStream, setHasCameraStream] = useState(false);
+  const [hasMicStream, setHasMicStream]       = useState(false);
+  const [cameraError, setCameraError]         = useState(null);
 
-  const videoRef    = useRef(null);
-  const streamRef   = useRef(null);
-  const audioCtxRef = useRef(null);
-  const animRef     = useRef(null);
+  const videoRef       = useRef(null);
+  const videoStreamRef = useRef(null);
+  const audioStreamRef = useRef(null);
+  const audioCtxRef    = useRef(null);
+  const animRef        = useRef(null);
 
   const stopAll = () => {
     cancelAnimationFrame(animRef.current);
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
+    videoStreamRef.current?.getTracks().forEach(t => t.stop());
+    audioStreamRef.current?.getTracks().forEach(t => t.stop());
+    videoStreamRef.current = null;
+    audioStreamRef.current = null;
     audioCtxRef.current?.close();
     audioCtxRef.current = null;
   };
 
   const startPreview = async (cameraId, micId) => {
     stopAll();
-    setReady(false);
-    setError(null);
     setLoading(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+    setHasCameraStream(false);
+    setHasMicStream(false);
+    setCameraError(null);
+
+    const [videoResult, audioResult] = await Promise.allSettled([
+      navigator.mediaDevices.getUserMedia({
         video: cameraId
           ? { deviceId: { exact: cameraId }, width: { ideal: 1280 }, height: { ideal: 720 } }
           : { width: { ideal: 1280 }, height: { ideal: 720 } },
+      }),
+      navigator.mediaDevices.getUserMedia({
         audio: micId ? { deviceId: { exact: micId } } : true,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      }),
+    ]);
 
-      const vt = stream.getVideoTracks()[0];
-      const at = stream.getAudioTracks()[0];
-      if (vt?.getSettings().deviceId) setSelectedCameraId(vt.getSettings().deviceId);
-      if (at?.getSettings().deviceId) setSelectedMicId(at.getSettings().deviceId);
+    const videoStream = videoResult.status === 'fulfilled' ? videoResult.value : null;
+    const audioStream = audioResult.status === 'fulfilled' ? audioResult.value : null;
 
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      setCameras(devices.filter(d => d.kind === 'videoinput'));
-      setMicrophones(devices.filter(d => d.kind === 'audioinput'));
-      setReady(true);
-      setLoading(false);
+    videoStreamRef.current = videoStream;
+    audioStreamRef.current = audioStream;
 
+    if (videoRef.current) videoRef.current.srcObject = videoStream ?? null;
+
+    const vt = videoStream?.getVideoTracks()[0];
+    const at = audioStream?.getAudioTracks()[0];
+    if (vt?.getSettings().deviceId) setSelectedCameraId(vt.getSettings().deviceId);
+    if (at?.getSettings().deviceId) setSelectedMicId(at.getSettings().deviceId);
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    setCameras(devices.filter(d => d.kind === 'videoinput'));
+    setMicrophones(devices.filter(d => d.kind === 'audioinput'));
+
+    setHasCameraStream(!!videoStream);
+    setHasMicStream(!!audioStream);
+    setCameraError(videoStream ? null : videoResult.reason?.message ?? 'Camera unavailable');
+    setLoading(false);
+
+    if (at) {
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
       const src = ctx.createMediaStreamSource(new MediaStream([at]));
@@ -182,9 +201,6 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
         animRef.current = requestAnimationFrame(tick);
       };
       tick();
-    } catch (err) {
-      setLoading(false);
-      setError(err.message || 'Could not access camera or microphone');
     }
   };
 
@@ -192,6 +208,8 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
     startPreview(null, null);
     return stopAll;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ready = !loading && (hasCameraStream || hasMicStream);
 
   const handleJoin = () => {
     stopAll();
@@ -231,38 +249,36 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
             style={{ transform: 'scaleX(-1)' }}
           />
 
-          {/* Loading / error overlay */}
-          {!ready && (
+          {/* Loading overlay */}
+          {loading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950 gap-3">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-gray-500 text-xs">Accessing devices…</p>
+            </div>
+          )}
+
+          {/* No-camera overlay (shown after loading if camera failed) */}
+          {!loading && !hasCameraStream && (
             <div className="absolute inset-0 flex flex-col items-center justify-center
                             bg-gray-950 gap-3 px-6 text-center">
-              {error ? (
-                <>
-                  <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20
-                                  flex items-center justify-center text-2xl shrink-0">
-                    🚫
-                  </div>
-                  <p className="text-gray-300 text-sm font-medium">Device unavailable</p>
-                  <p className="text-gray-500 text-xs leading-relaxed">{friendlyError(error)}</p>
-                  <button
-                    onClick={() => startPreview(null, null)}
-                    className="mt-1 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white
-                               rounded-lg text-xs font-medium transition-colors"
-                  >
-                    Try again
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent
-                                  rounded-full animate-spin" />
-                  <p className="text-gray-500 text-xs">Accessing camera…</p>
-                </>
-              )}
+              <div className="w-12 h-12 rounded-full bg-gray-800 border border-white/8
+                              flex items-center justify-center text-2xl shrink-0">
+                📷
+              </div>
+              <p className="text-gray-400 text-sm font-medium">No camera detected</p>
+              <p className="text-gray-600 text-xs leading-relaxed">{friendlyError(cameraError)}</p>
+              <button
+                onClick={() => startPreview(null, null)}
+                className="mt-1 px-4 py-1.5 bg-white/8 hover:bg-white/14 border border-white/10
+                           text-gray-300 rounded-lg text-xs font-medium transition-colors"
+              >
+                Try again
+              </button>
             </div>
           )}
 
           {/* Live badge */}
-          {ready && (
+          {hasCameraStream && (
             <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1
                             rounded-full bg-black/60 backdrop-blur-sm border border-white/8">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
@@ -271,7 +287,7 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
           )}
 
           {/* Name badge */}
-          {localName && ready && (
+          {localName && hasCameraStream && (
             <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full
                             bg-black/60 backdrop-blur-sm border border-white/8
                             text-white text-xs font-medium">
@@ -302,13 +318,13 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
               <StatusPill
                 icon={CameraIcon}
                 label="Camera"
-                active={ready}
+                active={hasCameraStream}
                 loading={loading}
               />
               <StatusPill
                 icon={MicIcon}
                 label="Microphone"
-                active={ready && micLevel > 0.5}
+                active={hasMicStream && micLevel > 0.5}
                 loading={loading}
               />
             </div>
