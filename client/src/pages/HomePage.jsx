@@ -62,7 +62,7 @@ export default function HomePage() {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [name, setName] = useState(() => sessionStorage.getItem('callspaceName') || '');
   const navigate = useNavigate();
-  const { isSupported, permission, subscribe } = usePushNotifications();
+  const { isSupported, permission, subscribed, subscribe, unsubscribe } = usePushNotifications();
 
   const handleNameChange = (e) => {
     const val = e.target.value;
@@ -180,19 +180,27 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Notification prompt — only shown if supported and not yet granted */}
-        {isSupported && permission === 'default' && (
+        {/* Notification toggle — shown when supported and permission not blocked */}
+        {isSupported && permission !== 'denied' && (
           <button
-            onClick={subscribe}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl
-                       bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/15
-                       text-left transition-colors duration-150"
+            onClick={subscribed ? unsubscribe : subscribe}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-colors duration-150
+                        ${subscribed
+                          ? 'bg-white/5 border border-white/8 hover:bg-red-500/10 hover:border-red-500/20'
+                          : 'bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/15'}`}
           >
-            <span className="text-xl shrink-0">🔔</span>
-            <div>
-              <p className="text-blue-300 text-sm font-medium leading-tight">Enable call notifications</p>
-              <p className="text-blue-400/60 text-xs mt-0.5 leading-tight">Get notified when someone is calling you</p>
+            <span className="text-xl shrink-0">{subscribed ? '🔔' : '🔕'}</span>
+            <div className="flex-1">
+              <p className={`text-sm font-medium leading-tight ${subscribed ? 'text-gray-300' : 'text-blue-300'}`}>
+                {subscribed ? 'Notifications enabled' : 'Enable call notifications'}
+              </p>
+              <p className={`text-xs mt-0.5 leading-tight ${subscribed ? 'text-gray-600' : 'text-blue-400/60'}`}>
+                {subscribed ? 'Tap to disable for this device' : 'Get notified when someone is calling you'}
+              </p>
             </div>
+            {subscribed && (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+            )}
           </button>
         )}
 
