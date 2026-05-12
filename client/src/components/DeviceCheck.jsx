@@ -105,6 +105,18 @@ function StatusPill({ icon: Icon, label, active, loading }) {
   );
 }
 
+// ── Friendly error message ────────────────────────────────────────────────────
+
+function friendlyError(msg = '') {
+  if (/denied|not allowed|permission/i.test(msg))
+    return 'Camera or microphone access was denied. Allow access in your browser settings and try again.';
+  if (/not found|could not start|no device/i.test(msg))
+    return 'No camera or microphone detected. Plug one in and try again.';
+  if (/in use|readable/i.test(msg))
+    return 'Your camera or microphone is in use by another app. Close it and try again.';
+  return msg || 'Could not access camera or microphone.';
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DeviceCheck({ roomId, localName, onJoin }) {
@@ -115,6 +127,7 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
   const [micLevel, setMicLevel]   = useState(0);
   const [ready, setReady]         = useState(false);
   const [error, setError]         = useState(null);
+  const [loading, setLoading]     = useState(true);
 
   const videoRef    = useRef(null);
   const streamRef   = useRef(null);
@@ -132,6 +145,8 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
   const startPreview = async (cameraId, micId) => {
     stopAll();
     setReady(false);
+    setError(null);
+    setLoading(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: cameraId
@@ -151,7 +166,7 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
       setCameras(devices.filter(d => d.kind === 'videoinput'));
       setMicrophones(devices.filter(d => d.kind === 'audioinput'));
       setReady(true);
-      setError(null);
+      setLoading(false);
 
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
@@ -168,6 +183,7 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
       };
       tick();
     } catch (err) {
+      setLoading(false);
       setError(err.message || 'Could not access camera or microphone');
     }
   };
@@ -181,31 +197,6 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
     stopAll();
     onJoin({ cameraId: selectedCameraId, micId: selectedMicId });
   };
-
-  // ── Error state ─────────────────────────────────────────────────────────────
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
-        <div className="text-center space-y-5 max-w-sm">
-          <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20
-                          flex items-center justify-center mx-auto text-3xl">
-            🚫
-          </div>
-          <div className="space-y-1.5">
-            <h2 className="text-white text-xl font-semibold">Access denied</h2>
-            <p className="text-gray-400 text-sm leading-relaxed">{error}</p>
-          </div>
-          <button
-            onClick={() => { setError(null); startPreview(null, null); }}
-            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white
-                       rounded-xl transition-colors font-medium text-sm"
-          >
-            Try again
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   // ── Main layout ─────────────────────────────────────────────────────────────
   return (
@@ -240,13 +231,33 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
             style={{ transform: 'scaleX(-1)' }}
           />
 
-          {/* Loading overlay */}
+          {/* Loading / error overlay */}
           {!ready && (
             <div className="absolute inset-0 flex flex-col items-center justify-center
-                            bg-gray-950 gap-3">
-              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent
-                              rounded-full animate-spin" />
-              <p className="text-gray-500 text-xs">Accessing camera…</p>
+                            bg-gray-950 gap-3 px-6 text-center">
+              {error ? (
+                <>
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20
+                                  flex items-center justify-center text-2xl shrink-0">
+                    🚫
+                  </div>
+                  <p className="text-gray-300 text-sm font-medium">Device unavailable</p>
+                  <p className="text-gray-500 text-xs leading-relaxed">{friendlyError(error)}</p>
+                  <button
+                    onClick={() => startPreview(null, null)}
+                    className="mt-1 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white
+                               rounded-lg text-xs font-medium transition-colors"
+                  >
+                    Try again
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent
+                                  rounded-full animate-spin" />
+                  <p className="text-gray-500 text-xs">Accessing camera…</p>
+                </>
+              )}
             </div>
           )}
 
@@ -292,13 +303,13 @@ export default function DeviceCheck({ roomId, localName, onJoin }) {
                 icon={CameraIcon}
                 label="Camera"
                 active={ready}
-                loading={!ready}
+                loading={loading}
               />
               <StatusPill
                 icon={MicIcon}
                 label="Microphone"
                 active={ready && micLevel > 0.5}
-                loading={!ready}
+                loading={loading}
               />
             </div>
 
