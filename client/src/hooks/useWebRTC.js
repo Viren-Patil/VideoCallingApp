@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../lib/socket';
+import { getDeviceId } from '../lib/deviceId';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -302,7 +303,7 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
       }
 
       socket.connect();
-      socket.emit('join-room', { roomId, name: localName });
+      socket.emit('join-room', { roomId, name: localName, deviceId: getDeviceId() });
     };
 
     socket.on('room-joined', ({ isInitiator, peerName }) => {

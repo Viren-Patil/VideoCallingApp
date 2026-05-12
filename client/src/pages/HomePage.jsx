@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 function generateRoomId() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -61,6 +62,7 @@ export default function HomePage() {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [name, setName] = useState(() => sessionStorage.getItem('callspaceName') || '');
   const navigate = useNavigate();
+  const { isSupported, permission, subscribe } = usePushNotifications();
 
   const handleNameChange = (e) => {
     const val = e.target.value;
@@ -177,6 +179,22 @@ export default function HomePage() {
             </>
           )}
         </div>
+
+        {/* Notification prompt — only shown if supported and not yet granted */}
+        {isSupported && permission === 'default' && (
+          <button
+            onClick={subscribe}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl
+                       bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/15
+                       text-left transition-colors duration-150"
+          >
+            <span className="text-xl shrink-0">🔔</span>
+            <div>
+              <p className="text-blue-300 text-sm font-medium leading-tight">Enable call notifications</p>
+              <p className="text-blue-400/60 text-xs mt-0.5 leading-tight">Get notified when someone is calling you</p>
+            </div>
+          </button>
+        )}
 
         <p className="text-center text-gray-700 text-xs">
           Encrypted · Peer-to-peer · No recording

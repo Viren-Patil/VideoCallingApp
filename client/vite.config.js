@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
@@ -19,33 +22,22 @@ export default defineConfig({
         scope: '/',
         start_url: '/',
         icons: [
-          { src: 'pwa-64x64.png',             sizes: '64x64',   type: 'image/png' },
-          { src: 'pwa-192x192.png',            sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png',            sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: 'maskable-icon-512x512.png',  sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'pwa-64x64.png',            sizes: '64x64',   type: 'image/png' },
+          { src: 'pwa-192x192.png',           sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png',           sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/socket\.io/],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts-cache', expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 } },
-          },
-        ],
       },
     }),
   ],
   server: {
     proxy: {
-      '/socket.io': {
-        target: 'http://localhost:3001',
-        ws: true,
-        changeOrigin: true,
-      },
+      '/socket.io':       { target: 'http://localhost:3001', ws: true, changeOrigin: true },
+      '/vapid-public-key': { target: 'http://localhost:3001', changeOrigin: true },
+      '/subscribe':        { target: 'http://localhost:3001', changeOrigin: true },
     },
   },
 });
