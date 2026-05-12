@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { getDeviceId } from '../lib/deviceId';
 
 const SERVER = import.meta.env.VITE_SOCKET_URL || '';
-const SUBSCRIBED_KEY = 'callspacePushSubscribed';
 
 function urlBase64ToUint8Array(base64) {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
@@ -17,13 +16,37 @@ const isSupported =
   'PushManager' in window &&
   'serviceWorker' in navigator;
 
+async function reRegisterWithServer(subscription) {
+  try {
+    await fetch(`${SERVER}/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId: getDeviceId(), subscription }),
+    });
+  } catch { /* server may be waking up — will retry on next load */ }
+}
+
 export function usePushNotifications() {
   const [permission, setPermission] = useState(
     isSupported ? Notification.permission : 'unsupported'
   );
-  const [subscribed, setSubscribed] = useState(
-    () => localStorage.getItem(SUBSCRIBED_KEY) === 'true'
-  );
+  const [subscribed, setSubscribed] = useState(false);
+
+  // On mount, check the ACTUAL browser push subscription — this is the source of truth.
+  // localStorage alone is unreliable on iOS PWA across relaunches.
+  useEffect(() => {
+    if (!isSupported) return;
+    navigator.serviceWorker.ready.then(async (registration) => {
+      const existing = await registration.pushManager.getSubscription();
+      if (existing && Notification.permission === 'granted') {
+        setSubscribed(true);
+        // Re-register with server on every launch so it stays in sync after server restarts
+        reRegisterWithServer(existing);
+      } else {
+        setSubscribed(false);
+      }
+    });
+  }, []);
 
   const subscribe = useCallback(async () => {
     if (!isSupported) return false;
@@ -52,11 +75,7 @@ export function usePushNotifications() {
         body: JSON.stringify({ deviceId: getDeviceId(), subscription }),
       });
 
-      if (res.ok) {
-        localStorage.setItem(SUBSCRIBED_KEY, 'true');
-        setSubscribed(true);
-        return true;
-      }
+      if (res.ok) { setSubscribed(true); return true; }
       return false;
     } catch (err) {
       console.error('Push subscription failed:', err);
@@ -66,30 +85,19 @@ export function usePushNotifications() {
 
   const unsubscribe = useCallback(async () => {
     try {
-      // Remove from server
       await fetch(`${SERVER}/subscribe`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deviceId: getDeviceId() }),
       });
-
-      // Unsubscribe the browser push subscription
       const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
     } catch (err) {
       console.error('Unsubscribe failed:', err);
     }
-    localStorage.removeItem(SUBSCRIBED_KEY);
     setSubscribed(false);
   }, []);
-
-  // Re-subscribe on load if permission is granted (keeps server in sync after restarts)
-  useEffect(() => {
-    if (isSupported && Notification.permission === 'granted' && localStorage.getItem(SUBSCRIBED_KEY) === 'true') {
-      subscribe();
-    }
-  }, [subscribe]);
 
   return { isSupported, permission, subscribed, subscribe, unsubscribe };
 }
