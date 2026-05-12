@@ -231,39 +231,62 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
     let active = true;
 
     const init = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+      const [videoResult, audioResult] = await Promise.allSettled([
+        navigator.mediaDevices.getUserMedia({
           video: {
             ...(initCameraIdRef.current ? { deviceId: { exact: initCameraIdRef.current } } : {}),
             width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 },
           },
+        }),
+        navigator.mediaDevices.getUserMedia({
           audio: {
             ...(initMicIdRef.current ? { deviceId: { exact: initMicIdRef.current } } : {}),
             noiseSuppression: true, echoCancellation: true, autoGainControl: true,
           },
-        });
-        if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
+        }),
+      ]);
 
-        localStreamRef.current = stream;
-        cameraTrackRef.current = stream.getVideoTracks()[0] ?? null;
+      if (!active) {
+        if (videoResult.status === 'fulfilled') videoResult.value.getTracks().forEach(t => t.stop());
+        if (audioResult.status === 'fulfilled') audioResult.value.getTracks().forEach(t => t.stop());
+        return;
+      }
 
-        // Set initial device IDs so the dropdowns start selected correctly
-        const videoTrack = stream.getVideoTracks()[0];
-        const audioTrack = stream.getAudioTracks()[0];
-        if (videoTrack?.getSettings().deviceId) setSelectedCameraId(videoTrack.getSettings().deviceId);
-        if (audioTrack?.getSettings().deviceId) setSelectedMicId(audioTrack.getSettings().deviceId);
+      const videoTrack = videoResult.status === 'fulfilled' ? videoResult.value.getVideoTracks()[0] ?? null : null;
+      const audioTrack = audioResult.status === 'fulfilled' ? audioResult.value.getAudioTracks()[0] ?? null : null;
 
-        setLocalStream(new MediaStream(stream.getTracks()));
-        setLocalCameraStream(new MediaStream(stream.getTracks()));
+      // Only hard-fail if neither device is available at all
+      if (!videoTrack && !audioTrack) {
+        setMediaError(audioResult.reason?.message || videoResult.reason?.message || 'No camera or microphone available');
+        return;
+      }
 
-        // Enumerate after getUserMedia so labels are visible
-        await enumerateDevices();
-        navigator.mediaDevices.addEventListener('devicechange', enumerateDevices);
+      const tracks = [...(videoTrack ? [videoTrack] : []), ...(audioTrack ? [audioTrack] : [])];
+      const stream = new MediaStream(tracks);
 
-        const pc = makePc();
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      localStreamRef.current = stream;
+      cameraTrackRef.current = videoTrack;
 
-        // Prefer H.264 → VP9 before the first SDP exchange (must be before onnegotiationneeded fires)
+      // If no camera, start in video-off state so the UI reflects reality
+      if (!videoTrack) {
+        isVideoOffRef.current = true;
+        setIsVideoOff(true);
+      }
+
+      if (videoTrack?.getSettings().deviceId) setSelectedCameraId(videoTrack.getSettings().deviceId);
+      if (audioTrack?.getSettings().deviceId) setSelectedMicId(audioTrack.getSettings().deviceId);
+
+      setLocalStream(new MediaStream(stream.getTracks()));
+      setLocalCameraStream(new MediaStream(stream.getTracks()));
+
+      await enumerateDevices();
+      navigator.mediaDevices.addEventListener('devicechange', enumerateDevices);
+
+      const pc = makePc();
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+      // Prefer H.264 → VP9 — only relevant when a video track is present
+      if (videoTrack) {
         try {
           const videoTxcvr = pc.getTransceivers().find(t => t.sender.track?.kind === 'video');
           if (videoTxcvr && RTCRtpReceiver.getCapabilities) {
@@ -276,13 +299,10 @@ export function useWebRTC(roomId, localName = '', initialCameraId = '', initialM
             videoTxcvr.setCodecPreferences(sorted);
           }
         } catch { /* Firefox does not support setCodecPreferences */ }
-
-        socket.connect();
-        socket.emit('join-room', { roomId, name: localName });
-      } catch (err) {
-        console.error('getUserMedia failed:', err);
-        if (active) setMediaError(err.message);
       }
+
+      socket.connect();
+      socket.emit('join-room', { roomId, name: localName });
     };
 
     socket.on('room-joined', ({ isInitiator, peerName }) => {
